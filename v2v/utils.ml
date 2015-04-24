@@ -107,13 +107,14 @@ let kvm_arch = function
 (* Does qemu support the given sound card? *)
 let qemu_supports_sound_card = function
   | AC97
-  | ES1370
   | ICH6
   | ICH9
   | PCSpeaker
+    -> true
+  | ES1370
   | SB16
   | USBAudio
-    -> true
+    -> false
 
 (* Find the UEFI firmware. *)
 let find_uefi_firmware guest_arch =
