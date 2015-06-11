@@ -468,6 +468,7 @@ Makefile.in
 /ruby/stamp-rdoc
 /run
 /sparsify/.depend
+/sparsify/config_el.ml
 /sparsify/stamp-virt-sparsify.pod
 /sparsify/virt-sparsify
 /sparsify/virt-sparsify.1

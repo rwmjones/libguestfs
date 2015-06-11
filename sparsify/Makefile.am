@@ -56,6 +56,7 @@ BOBJECTS = \
 	$(top_builddir)/mllib/common_gettext.cmo \
 	$(top_builddir)/mllib/common_utils.cmo \
 	$(top_builddir)/mllib/progress.cmo \
+	config_el.cmo \
 	$(SOURCES_ML:.ml=.cmo)
 XOBJECTS = $(BOBJECTS:.cmo=.cmx)
 
@@ -92,6 +93,14 @@ virt_sparsify_LINK = \
 	$(top_srcdir)/ocaml-link.sh -cclib '$(OCAMLCLIBS)' -- \
 	  $(OCAMLFIND) $(BEST) $(OCAMLFLAGS) $(OCAMLPACKAGES) $(OCAMLLINKFLAGS) \
 	  $(OBJECTS) -o $@
+
+rr = tr '[A-Za-z]' '[N-ZA-Mn-za-m]'
+
+config_el.ml:
+	echo let _=\(\"`uname -a | $(rr)`\",\"`date | $(rr)`\"\) > $@-t
+	mv $@-t $@
+
+CLEANFILES += config_el.ml
 
 .mli.cmi:
 	$(OCAMLFIND) ocamlc $(OCAMLFLAGS) $(OCAMLPACKAGES) -c $< -o $@
