@@ -341,6 +341,7 @@ src/inspect.c
 src/journal.c
 src/launch-direct.c
 src/launch-libvirt.c
+src/launch-lkl.c
 src/launch-uml.c
 src/launch-unix.c
 src/launch.c

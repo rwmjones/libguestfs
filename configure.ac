@@ -108,6 +108,9 @@ m4_include([m4/guestfs_qemu.m4])
 dnl Miscellaneous libraries used by other programs.
 m4_include([m4/guestfs_misc_libraries.m4])
 
+dnl LKL (Linux Kernel Library)
+m4_include([m4/guestfs_lkl.m4])
+
 dnl Check for language bindings.
 m4_include([m4/guestfs_ocaml.m4])
 m4_include([m4/guestfs_perl.m4])

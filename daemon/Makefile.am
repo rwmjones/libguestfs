@@ -226,6 +226,22 @@ guestfsd_CFLAGS = \
 	$(YAJL_CFLAGS) \
 	$(PCRE_CFLAGS)
 
+if HAVE_LKL
+
+# Compile guestfsd again, linked to liblkl.
+bin_PROGRAMS = guestfsd-lkl
+
+guestfsd_lkl_SOURCES = $(guestfsd_SOURCES)
+guestfsd_lkl_LDADD = \
+	-L$(LKL_PATH)/tools/lkl/lib -llkl -lrt $(guestfsd_LDADD)
+guestfsd_lkl_CPPFLAGS = \
+	$(guestfsd_CPPFLAGS) -DHAVE_LKL=1 -I$(LKL_PATH)/tools/lkl/include
+guestfsd_lkl_CFLAGS = \
+	-pthread \
+	$(guestfsd_CFLAGS)
+
+endif
+
 # Manual pages and HTML files for the website.
 if INSTALL_DAEMON
 man_MANS = guestfsd.8

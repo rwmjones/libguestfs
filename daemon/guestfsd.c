@@ -38,6 +38,11 @@
 #include <sys/param.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#if HAVE_LKL /* Wut? XXX */
+#undef st_atime
+#undef st_mtime
+#undef st_ctime
+#endif
 #include <fcntl.h>
 #include <signal.h>
 #include <netdb.h>
@@ -52,6 +57,11 @@
 
 #ifdef HAVE_PRINTF_H
 # include <printf.h>
+#endif
+
+#ifdef HAVE_LKL
+#include <lkl.h>
+#include <lkl_host.h>
 #endif
 
 #include <augeas.h>
@@ -131,11 +141,21 @@ const char *program_name = "guestfsd";
 /* Name of the virtio-serial channel. */
 #define VIRTIO_SERIAL_CHANNEL "/dev/virtio-ports/org.libguestfs.channel.0"
 
+#if HAVE_LKL
+/* LKL disk IDs. */
+int *disk_id;
+size_t nr_disks;
+#endif
+
 static void
 usage (void)
 {
   fprintf (stderr,
-	   "guestfsd [-r] [-v|--verbose]\n");
+	   "guestfsd [-r] [-v|--verbose]"
+#if HAVE_LKL
+           " disk [disk ...]"
+#endif
+           "\n");
 }
 
 int
@@ -154,6 +174,15 @@ main (int argc, char *argv[])
   int c;
   const char *channel = NULL;
   int listen_mode = 0;
+
+#if HAVE_LKL
+  /* XXX Safety check.  Because large parts of the daemon haven't been
+   * ported to use LKL, refuse to run as root in case someone ends up
+   * trashing their host system by using some unported command.
+   */
+  if (geteuid () == 0)
+    error (EXIT_FAILURE, 0, "refusing to run as root");
+#endif
 
   ignore_value (chdir ("/"));
 
@@ -232,6 +261,32 @@ main (int argc, char *argv[])
     }
   }
 
+#if HAVE_LKL
+  nr_disks = argc - optind;
+  disk_id = malloc (nr_disks * sizeof (int));
+  if (disk_id == NULL)
+    error (EXIT_FAILURE, errno, "malloc");
+
+  for (size_t i = 0; i < nr_disks; ++i, ++optind) {
+    union lkl_disk_backstore disk;
+
+    /* XXX Pass through readonly and other per-disk flags from library side. */
+
+    disk.fd = open (argv[optind], O_RDWR);
+    if (disk.fd == -1)
+      error (EXIT_FAILURE, errno, "open: %s", argv[optind]);
+    disk_id[i] = lkl_disk_add (disk);
+    if (disk_id[i] < 0)
+      error (EXIT_FAILURE, 0, "lkl_disk_add: %s: %s",
+             argv[optind], lkl_strerror (disk_id[i]));
+  }
+
+  /* XXX I assume the second parameter is memory size.  Pass
+   * g->memsize setting through to the daemon.
+   */
+  lkl_start_kernel (&lkl_host_ops, 100 * 1024 * 1024, "");
+#endif
+
   if (optind < argc) {
     usage ();
     exit (EXIT_FAILURE);
@@ -271,11 +326,13 @@ main (int argc, char *argv[])
   _umask (0);
 #endif
 
+#ifndef HAVE_LKL
   /* Make a private copy of /etc/lvm so we can change the config (see
    * daemon/lvm-filter.c).
    */
   if (!test_mode)
     copy_lvm ();
+#endif
 
   /* Connect to virtio-serial channel. */
   if (!channel)

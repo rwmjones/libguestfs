@@ -67,6 +67,12 @@ extern int xread (int sock, void *buf, size_t len)
 
 extern char *mountable_to_string (const mountable_t *mountable);
 
+#if HAVE_LKL
+/* LKL disk IDs. */
+extern int *disk_id;
+extern size_t nr_disks;
+#endif
+
 /*-- in mount.c --*/
 
 extern int mount_vfs_nochroot (const char *options, const char *vfstype,

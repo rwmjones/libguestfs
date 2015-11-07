@@ -124,6 +124,7 @@ Makefile.in
 /daemon/guestfsd
 /daemon/guestfsd.8
 /daemon/guestfsd.exe
+/daemon/guestfsd-lkl
 /daemon/guestfs_protocol.c
 /daemon/guestfs_protocol.h
 /daemon/install-sh
