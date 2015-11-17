@@ -18,12 +18,20 @@
 
 (* This file tests individual virt-v2v functions. *)
 
+open Printf
 open OUnit2
+
+open Common_utils
+
 open Types
 
-open Printf
-
 external identity : 'a -> 'a = "%identity"
+
+let (//) = Filename.concat
+
+let srcdir =
+  try Sys.getenv "srcdir"
+  with Not_found -> failwith "environment variable $srcdir must be set"
 
 let inspect_defaults = {
   i_type = ""; i_distro = ""; i_arch = "";
@@ -126,6 +134,97 @@ let test_drive_index ctx =
   assert_raises exn (fun () -> Utils.drive_index "Z");
   assert_raises exn (fun () -> Utils.drive_index "aB")
 
+(* Test parsing a [*.inf] file. *)
+let test_windows_inf_of_string ctx =
+  let printer = Windows_inf.to_string in
+
+  (* There is nothing special about this choice.  It is just a driver
+   * [*.inf] file picked at random.
+   *)
+  let path = srcdir // ".." // "test-data" // "fake-virtio-win" //
+               "cd" // "Balloon" // "2k12" // "amd64" // "balloon.inf" in
+
+  let sections = Windows_inf.load path in
+
+  let expected = [
+    "version", [
+      "signature", "\"$WINDOWS NT$\"";
+      "class", "System";
+      "classguid", "{4d36e97d-e325-11ce-bfc1-08002be10318}";
+      "provider", "%RHEL%";
+      "driverver", "12/04/2014,62.71.104.9600";
+      "catalogfile", "Balloon.cat";
+      "driverpackagetype", "PlugAndPlay";
+      "driverpackagedisplayname", "%BALLOON.DeviceDesc%";
+      "pnplockdown", "1";
+    ];
+    "destinationdirs", [
+      "defaultdestdir", "12";
+    ];
+    "sourcedisksnames", [
+      "1", "%DiskId1%,,,\"\"";
+    ];
+    "sourcedisksfiles", [
+      "balloon.sys", "1,,";
+    ];
+    "manufacturer", [
+      "%rhel%", "Standard,NTamd64";
+    ];
+    "standard", [
+      "%balloon.devicedesc%", "BALLOON_Device, PCI\\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00";
+    ];
+    "standard.ntamd64", [
+      "%balloon.devicedesc%", "BALLOON_Device, PCI\\VEN_1AF4&DEV_1002&SUBSYS_00051AF4&REV_00";
+    ];
+    "balloon_device.nt", [
+      "copyfiles", "Drivers_Dir";
+    ];
+    "drivers_dir", [];
+    "balloon_device.nt.services", [
+      "addservice", "BALLOON,%SPSVCINST_ASSOCSERVICE%, BALLOON_Service_Inst, BALLOON_Logging_Inst";
+    ];
+    "balloon_service_inst", [
+      "displayname", "%BALLOON.SVCDESC%";
+      "servicetype", "1";
+      "starttype", "3";
+      "errorcontrol", "1";
+      "servicebinary", "%12%\\balloon.sys";
+    ];
+    "balloon_logging_inst", [
+      "addreg", "BALLOON_Logging_Inst_AddReg";
+    ];
+    "balloon_logging_inst_addreg", [];
+    "destinationdirs", [
+      "balloon_device_coinstaller_copyfiles", "11";
+    ];
+    "balloon_device.nt.coinstallers", [
+      "addreg", "BALLOON_Device_CoInstaller_AddReg";
+      "copyfiles", "BALLOON_Device_CoInstaller_CopyFiles";
+    ];
+    "balloon_device_coinstaller_addreg", [];
+    "balloon_device_coinstaller_copyfiles", [];
+    "sourcedisksfiles", [
+      "wdfcoinstaller01011.dll", "1";
+    ];
+    "balloon_device.nt.wdf", [
+      "kmdfservice", "BALLOON, BALLOON_wdfsect";
+    ];
+    "balloon_wdfsect", [
+      "kmdflibraryversion", "1.11";
+    ];
+    "strings", [
+      "spsvcinst_assocservice", "0x00000002";
+      "rhel", "\"Red Hat, Inc.\"";
+      "diskid1", "\"VirtIO Balloon Installation Disk #1\"";
+      "balloon.devicedesc", "\"VirtIO Balloon Driver\"";
+      "balloon.svcdesc", "\"VirtIO Balloon Service\"";
+      "classname", "\"VirtIO Balloon Device\"";
+    ];
+  ] in
+
+  assert_equal ~printer expected sections
+
+(* Test the code which matches [*.inf] files to Windows guests. *)
 let test_virtio_iso_path_matches_guest_os ctx =
   (* Windows OSes fake inspection data. *)
   let make_win name major minor variant arch = {
@@ -772,6 +871,7 @@ let suite =
       "OVF.get_ostype" >:: test_get_ostype;
       "Utils.drive_name" >:: test_drive_name;
       "Utils.drive_index" >:: test_drive_index;
+      "Windows_inf.of_string" >:: test_windows_inf_of_string;
       "Windows.virtio_iso_path_matches_guest_os" >::
         test_virtio_iso_path_matches_guest_os;
     ]

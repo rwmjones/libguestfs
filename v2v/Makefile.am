@@ -69,6 +69,7 @@ SOURCES_MLI = \
 	utils.mli \
 	vCenter.mli \
 	windows.mli \
+	windows_inf.mli \
 	xml.mli
 
 SOURCES_ML = \
@@ -82,8 +83,9 @@ SOURCES_ML = \
 	DOM.ml \
 	changeuid.ml \
 	OVF.ml \
-	linux.ml \
+	windows_inf.ml \
 	windows.ml \
+	linux.ml \
 	modules_list.ml \
 	input_disk.ml \
 	input_libvirtxml.ml \
@@ -309,6 +311,7 @@ v2v_unit_tests_BOBJECTS = \
 	utils.cmo \
 	DOM.cmo \
 	OVF.cmo \
+	windows_inf.cmo \
 	windows.cmo \
 	v2v_unit_tests.cmo
 v2v_unit_tests_XOBJECTS = $(v2v_unit_tests_BOBJECTS:.cmo=.cmx)
