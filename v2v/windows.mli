@@ -45,5 +45,5 @@ val get_node : Guestfs.guestfs -> int64 -> string list -> int64 option
 
 (* The following function is only exported for unit tests. *)
 module UNIT_TESTS : sig
-  val virtio_iso_path_matches_guest_os : string -> Types.inspect -> bool
+  val virtio_inf_matches_guest_os : string -> string -> Types.inspect -> bool
 end

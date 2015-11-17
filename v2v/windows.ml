@@ -50,128 +50,185 @@ and (=~) str rex =
 (* Copy the matching drivers to the driverdir; return true if any have
  * been copied.
  *)
+type virtio_win_source =
+  | Virtio_Win_Directory
+  | Virtio_Win_ISO of Guestfs.guestfs
+
 let rec copy_virtio_drivers g inspect virtio_win driverdir =
-  let ret = ref false in
-  if is_directory virtio_win then (
-    let cmd = sprintf "cd %s && find -type f" (quote virtio_win) in
-    let paths = external_command cmd in
-    List.iter (
-      fun path ->
-        if virtio_iso_path_matches_guest_os path inspect then (
-          let source = virtio_win // path in
-          let target = driverdir //
-                         String.lowercase_ascii (Filename.basename path) in
-          if verbose () then
-            printf "Copying virtio driver bits: 'host:%s' -> '%s'\n"
-                   source target;
+  (* Does $VIRTIO_WIN point to a directory or an ISO file? *)
+  let virtio_win_source =
+    if is_directory virtio_win then
+      Some Virtio_Win_Directory
+    else if is_regular_file virtio_win then (
+      try
+        let g2 = open_guestfs ~identifier:"virtio_win" () in
+        g2#add_drive_opts virtio_win ~readonly:true;
+        g2#launch ();
+        g2#mount_ro "/dev/sda" "/";
+        Some (Virtio_Win_ISO g2)
+      with Guestfs.Error msg ->
+        error (f_"%s: cannot open virtio-win ISO file: %s") virtio_win msg
+    ) else
+      None in
 
-          g#write target (read_whole_file source);
-          ret := true
-        )
-      ) paths
-  )
-  else if is_regular_file virtio_win then (
-    try
-      let g2 = open_guestfs ~identifier:"virtio_win" () in
-      g2#add_drive_opts virtio_win ~readonly:true;
-      g2#launch ();
-      let vio_root = "/" in
-      g2#mount_ro "/dev/sda" vio_root;
-      let paths = g2#find vio_root in
-      Array.iter (
-        fun path ->
-          let source = vio_root // path in
-          if g2#is_file source ~followsymlinks:false &&
-               virtio_iso_path_matches_guest_os path inspect then (
-            let target = driverdir //
-                           String.lowercase_ascii (Filename.basename path) in
-            if verbose () then
-              printf "Copying virtio driver bits: '%s:%s' -> '%s'\n"
-                     virtio_win path target;
+  match virtio_win_source with
+  | None ->
+     (* [$VIRTIO_WIN] does not point to a directory or regular file.  This
+      * is not an error, but at the same time, no drivers were copied
+      * so we return [false] here.
+      *)
+     false
 
-            g#write target (g2#read_file source);
-            ret := true
-          )
-        ) paths;
-      g2#close()
-    with Guestfs.Error msg ->
-      error (f_"%s: cannot open virtio-win ISO file: %s") virtio_win msg
-  );
-  !ret
+  | Some virtio_win_source ->
+     (* Find and load all the *.inf files from the virtio-win directory
+      * or ISO.  Returns a list of pairs [(inf_content, inf_name, directory)]
+      * where [inf_content] is the unparsed inf file, [inf_name] is a debug
+      * string we can use in error messages to refer to the inf file,
+      * and [directory] is a string used to track the directory containing
+      * the inf file.
+      *)
+     let inf_files : (string * string * string) list =
+       match virtio_win_source with
+       | Virtio_Win_Directory ->
+          let cmd =
+            sprintf "find %s -name '*.inf' -type f" (quote virtio_win) in
+          let paths = external_command cmd in
+          List.map (fun path ->
+                      read_whole_file path, path, Filename.dirname path) paths
+       | Virtio_Win_ISO g2 ->
+          let paths = g2#find "/" in
+          let paths = Array.to_list paths in
+          let paths =
+            List.filter (
+              fun path ->
+                String.is_suffix path ".inf" &&
+                  g2#is_file path ~followsymlinks:false
+            ) paths in
+          List.map (
+            fun path ->
+              let path = "/" ^ path in
+              let i = String.rindex path '/' in
+              let dir = String.sub path 0 i in
+              g2#read_file path, sprintf "%s:%s" virtio_win path, dir
+          ) paths in
 
-(* Given a path of a file relative to the root of the directory tree
- * with virtio-win drivers, figure out if it's suitable for the
- * specific Windows flavor of the current guest.
+     (* Get only the *.inf files which match the operating system. *)
+     let inf_files =
+       List.filter (
+         fun (inf_content, inf_name, directory) ->
+           virtio_inf_matches_guest_os inf_content inf_name inspect
+       ) inf_files in
+
+     (* If a directory contains any matching *.inf file, then we will
+      * copy all the files from that directory.  So get the unique list
+      * of directories that we will copy.
+      *)
+     let directories = List.map (fun (_,_,dir) -> dir) inf_files in
+     let directories = sort_uniq directories in
+
+     (* Copy the directories. *)
+     List.iter (
+       fun dir ->
+         match virtio_win_source with
+         | Virtio_Win_Directory -> copy_host_directory dir g driverdir
+         | Virtio_Win_ISO g2 -> copy_iso_directory g2 dir g driverdir
+     ) directories;
+
+     (* Return true if some drivers were copied. *)
+     directories <> []
+
+(* Copy host files in same directory as inf_path to driverdir. *)
+and copy_host_directory dir g driverdir =
+  g#copy_in dir driverdir
+
+(* Copy files from ISO in same directory as inf_path to driverdir. *)
+and copy_iso_directory g2 dir g driverdir =
+  let files = g2#find dir in
+  let files = Array.to_list files in
+  assert (files <> []); (* at least the .inf file must be here *)
+
+  List.iter (
+    fun filename ->
+      let content = g2#read_file (dir ^ filename) in
+      g#write (driverdir ^ "/" ^ filename) content
+  ) files
+
+(* Given the content of a [*.inf] file from the virtio-win drivers,
+ * figure out if it's suitable for the specific Windows flavor of the
+ * current guest.
  *)
-and virtio_iso_path_matches_guest_os path inspect =
-  let { Types.i_major_version = os_major; i_minor_version = os_minor;
-        i_arch = arch; i_product_variant = os_variant } = inspect in
+and virtio_inf_matches_guest_os inf_content inf_name inspect =
+  let sections = Windows_inf.of_string inf_content in
+
+  (* Try to find the [Version] / DriverVer. *)
+  let driver_ver = parse_driver_ver inf_name sections in
+
+  (* Try to find the [Manufacturer] line. *)
+  let driver_arch = parse_manufacturer inf_name sections in
+
+  (* If we got both, we can continue, else give up. *)
+  match driver_ver, driver_arch with
+  | None, None | Some _, None | None, Some _ -> false
+  | Some driver_ver, Some driver_arch ->
+     (* XXX This ignores i_product_variant.  However that may not matter.
+      * There appears to be no material difference in the inf file.
+      *)
+     let { Types.i_major_version = major; i_minor_version = minor;
+           i_arch = arch } = inspect in
+
+     let ver = major * 10 + minor in
+
+     driver_ver = ver && driver_arch = arch
+
+(* Find the [Version] section in the [*.inf] file, and find the
+ * [DriverVer] from that, and parse it.  Returns [None] if we couldn't
+ * find / parse it.
+ * Reference: https://www.redhat.com/archives/libguestfs/2015-October/msg00352.html
+ *)
+and parse_driver_ver inf_name sections =
   try
-    (* Lowercased path, since the ISO may contain upper or lowercase path
-     * elements.
-     *)
-    let lc_path = String.lowercase_ascii path in
-    let lc_basename = Filename.basename path in
+    let driver_ver = Windows_inf.find_key sections "Version" "DriverVer" in
+    if Str.string_match driver_ver_rex driver_ver 0 then
+      Some (int_of_string (Str.matched_group 1 driver_ver))
+    else
+      raise Not_found
+  with
+    Not_found ->
+      warning (f_"%s: could not find or parse the [Version] DriverVer key in the Windows inf file")
+              inf_name;
+      None
 
-    let extension =
-      match last_part_of lc_basename '.' with
-      | Some x -> x
-      | None -> raise Not_found
-    in
+and driver_ver_rex =
+  Str.regexp "[0-9/]+,\\([0-9]+\\)"
 
-    (* Skip files without specific extensions. *)
-    let extensions = ["cat"; "inf"; "pdb"; "sys"] in
-    if not (List.mem extension extensions) then raise Not_found;
+(* Find the [Manufacturer] section and try to find the first line.
+ * There is no consistent naming of this line unfortunately.
+ * Reference: https://www.redhat.com/archives/libguestfs/2015-November/msg00065.html
+ *)
+and parse_manufacturer inf_name sections =
+  try
+    let lines = Windows_inf.find_section sections "Manufacturer" in
+    match lines with
+    | [] -> raise Not_found
+    | (_, manufacturer) :: _ ->
+       if Str.string_match manufacturer_rex manufacturer 0 then (
+         let arch = Str.matched_group 1 manufacturer in
+         if arch = "x86" || arch = "X86" then Some "i386" else Some "x86_64"
+       )
+       else
+         raise Not_found
+  with
+    Not_found ->
+      warning (f_"%s: could not find or parse the [Manufacturer] section in the Windows inf file")
+              inf_name;
+      None
 
-    (* Using the full path, work out what version of Windows
-     * this driver is for.  Paths can be things like:
-     * "NetKVM/2k12R2/amd64/netkvm.sys" or
-     * "./drivers/amd64/Win2012R2/netkvm.sys".
-     * Note we check lowercase paths.
-     *)
-    let pathelem elem = String.find lc_path ("/" ^ elem ^ "/") >= 0 in
-    let p_arch =
-      if pathelem "x86" || pathelem "i386" then "i386"
-      else if pathelem "amd64" then "x86_64"
-      else raise Not_found in
-
-    let is_client os_variant = os_variant = "Client"
-    and not_client os_variant = os_variant <> "Client"
-    and any_variant os_variant = true in
-    let p_os_major, p_os_minor, match_os_variant =
-      if pathelem "xp" || pathelem "winxp" then
-        (5, 1, any_variant)
-      else if pathelem "2k3" || pathelem "win2003" then
-        (5, 2, any_variant)
-      else if pathelem "vista" then
-        (6, 0, is_client)
-      else if pathelem "2k8" || pathelem "win2008" then
-        (6, 0, not_client)
-      else if pathelem "w7" || pathelem "win7" then
-        (6, 1, is_client)
-      else if pathelem "2k8r2" || pathelem "win2008r2" then
-        (6, 1, not_client)
-      else if pathelem "w8" || pathelem "win8" then
-        (6, 2, is_client)
-      else if pathelem "2k12" || pathelem "win2012" then
-        (6, 2, not_client)
-      else if pathelem "w8.1" || pathelem "win8.1" then
-        (6, 3, is_client)
-      else if pathelem "2k12r2" || pathelem "win2012r2" then
-        (6, 3, not_client)
-      else if pathelem "w10" || pathelem "win10" then
-        (10, 0, is_client)
-      else
-        raise Not_found in
-
-    arch = p_arch && os_major = p_os_major && os_minor = p_os_minor &&
-      match_os_variant os_variant
-
-  with Not_found -> false
+and manufacturer_rex =
+  Str.regexp_case_fold ".*,NT\\(x86\\|amd64\\)"
 
 (* The following function is only exported for unit tests. *)
 module UNIT_TESTS = struct
-  let virtio_iso_path_matches_guest_os = virtio_iso_path_matches_guest_os
+  let virtio_inf_matches_guest_os = virtio_inf_matches_guest_os
 end
 
 (* This is a wrapper that handles opening and closing the hive
