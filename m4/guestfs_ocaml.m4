@@ -29,6 +29,8 @@ AS_IF([test "x$enable_ocaml" != "xno"],[
     OCAMLFIND=
     AC_PROG_OCAML
     AC_PROG_FINDLIB
+    AC_PROG_OCAMLLEX
+    AC_PROG_OCAMLYACC
 
     dnl OCaml >= 3.11 is required.
     AC_MSG_CHECKING([if OCaml version >= 3.11])

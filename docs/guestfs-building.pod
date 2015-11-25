@@ -104,6 +104,10 @@ I<Required>.  Part of Perl core.
 
 =item OCaml findlib
 
+=item ocamllex
+
+=item ocamlyacc
+
 I<Required> if compiling from git.
 Optional (but recommended) if compiling from tarball.
 

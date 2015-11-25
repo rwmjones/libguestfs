@@ -36,6 +36,7 @@ gnulib_tool=$GNULIB_SRCDIR/gnulib-tool
 
 modules='
 accept4
+array-oset
 areadlink
 areadlinkat
 arpa_inet
@@ -97,6 +98,7 @@ warnings
 xalloc
 xalloc-die
 xgetcwd
+xoset
 xstrtol
 xstrtoll
 xvasprintf

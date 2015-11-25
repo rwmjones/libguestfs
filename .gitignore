@@ -225,7 +225,11 @@ Makefile.in
 /generator/files-generated.txt
 /generator/generator
 /generator/.pod2text.data*
+/generator/rules_parser.ml
+/generator/rules_parser.mli
+/generator/rules_scanner.ml
 /generator/stamp-generator
+/generator/stamp-rules-parser
 /get-kernel/.depend
 /get-kernel/stamp-virt-get-kernel.pod
 /get-kernel/virt-get-kernel

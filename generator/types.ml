@@ -18,6 +18,8 @@
 
 (* Please read generator/README first. *)
 
+open Printf
+
 (* Types used to describe the API. *)
 
 type style = ret * args * optargs
@@ -426,3 +428,68 @@ type call_optargt =
   | CallOInt64 of string * int64
   | CallOString of string * string
   | CallOStringList of string * string list
+
+(* Used by the rules compiler. *)
+
+type chunk = RuleChunk of rule | CodeChunk of code
+
+and rule = {
+  head : term;
+  body : expr;
+  rule_loc : Lexing.position;
+  mutable rule_fn : string;
+}
+(* The type of a parsed rule from the source. *)
+
+and term = { term_name : string; term_args : term_arg list }
+
+and term_arg = Variable of string | Constant of string
+
+and expr =
+  | True                        (* used for facts *)
+  | False                       (* false (keyword) *)
+  | Term of term
+  | Not of term                 (* ! term *)
+  | And of expr * expr          (* expr, expr *)
+  | Or of expr * expr           (* expr; expr *)
+  | BoolCode of code            (* {{ ... }} *)
+  | AssignCode of string list * row_count * code (* (a,b)={{ ... }} *)
+
+and code = {
+  code : string;
+  code_loc : Lexing.position;
+  mutable code_fn : string;
+}
+
+and row_count = RowsOne | RowsZeroOrMore | RowsOneOrMore | RowsZeroOrOne
+
+let rec string_of_rule { head = head; body = body } =
+  sprintf "%s :-\n\t%s." (string_of_term head) (string_of_expr body)
+
+and string_of_term = function
+  | { term_name = term_name; term_args = [] } ->
+      sprintf "%s" term_name
+  | { term_name = term_name; term_args = args } ->
+      sprintf "%s(%s)" term_name
+              (String.concat ", " (List.map string_of_term_arg args))
+
+and string_of_term_arg = function
+  | Variable s -> s
+  | Constant s -> sprintf "%S" s
+
+and string_of_expr = function
+  | True -> "true"
+  | False -> "true"
+  | Term term -> string_of_term term
+  | Not term -> sprintf "!%s" (string_of_term term)
+  | And (e1, e2) -> sprintf "(%s,%s)" (string_of_expr e1) (string_of_expr e2)
+  | Or (e1, e2) -> sprintf "(%s;%s)" (string_of_expr e1) (string_of_expr e2)
+  | BoolCode _ -> "{{ // code }}"
+  | AssignCode (bindings, RowsOne, _) ->
+     sprintf "(%s)={{ // code }}" (String.concat ", " bindings)
+  | AssignCode (bindings, RowsZeroOrMore, _) ->
+     sprintf "(%s)*={{ // code }}" (String.concat ", " bindings)
+  | AssignCode (bindings, RowsOneOrMore, _) ->
+     sprintf "(%s)+={{ // code }}" (String.concat ", " bindings)
+  | AssignCode (bindings, RowsZeroOrOne, _) ->
+     sprintf "(%s)?={{ // code }}" (String.concat ", " bindings)

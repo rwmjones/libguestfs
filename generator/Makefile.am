@@ -18,6 +18,9 @@
 include $(top_srcdir)/subdir-rules.mk
 
 # In alphabetical order.
+#
+# Note we include ocamllex/ocamlyacc-generated files here, since
+# we want to distribute these in the tarball for convenience.
 sources = \
 	actions.ml \
 	actions.mli \
@@ -70,6 +73,13 @@ sources = \
 	python.mli \
 	ruby.ml \
 	ruby.mli \
+	rules_compiler.ml \
+	rules_compiler.mli \
+	rules_parser.ml \
+	rules_parser.mli \
+	rules_parser.mly \
+	rules_scanner.ml \
+	rules_scanner.mll \
 	structs.ml \
 	structs.mli \
 	tests_c_api.ml \
@@ -112,6 +122,9 @@ objects = \
 	bindtests.cmo \
 	errnostring.cmo \
 	customize.cmo \
+	rules_scanner.cmo \
+	rules_parser.cmo \
+	rules_compiler.cmo \
 	main.cmo
 
 EXTRA_DIST = $(sources) files-generated.txt
@@ -125,6 +138,22 @@ if HAVE_OCAML
 generator: $(objects)
 	$(OCAMLFIND) ocamlc $(OCAMLCFLAGS) -linkpkg $^ -o $@
 
+rules_parser.ml rules_parser.mli: stamp-rules-parser
+
+stamp-rules-parser: rules_parser.mly
+	rm -f $@
+	$(OCAMLYACC) $<
+	touch $@
+
+rules_scanner.ml: rules_scanner.mll
+	$(OCAMLLEX) $<
+
+# Apparently because rules_parser.mli and rules_scanner.ml may not
+# exist before the Makefile is run, the pattern dependencies below
+# don't add these rules automatically, so we have to be explicit.
+rules_parser.cmi: rules_parser.mli
+rules_scanner.cmi: rules_scanner.ml
+
 # Dependencies.
 %.cmi: %.mli
 	$(OCAMLFIND) ocamlc $(OCAMLCFLAGS) -c $< -o $@
@@ -135,7 +164,7 @@ generator: $(objects)
 
 depend: .depend
 
-.depend: $(wildcard $(abs_srcdir)/*.mli) $(wildcard $(abs_srcdir)/*.ml)
+.depend: $(wildcard $(abs_srcdir)/*.mli) $(wildcard $(abs_srcdir)/*.ml) rules_parser.ml rules_parser.mli rules_scanner.ml
 	rm -f $@ $@-t
 	$(OCAMLFIND) ocamldep -I ../ocaml -I $(abs_srcdir) $^ | \
 	  $(SED) 's/ *$$//' | \
@@ -178,6 +207,12 @@ stamp-generator: generator
 
 CLEANFILES = $(noinst_DATA) $(noinst_PROGRAM) *.cmi *.cmo *~
 
-DISTCLEANFILES = .depend .pod2text.data.version.2
+DISTCLEANFILES = \
+	.depend \
+	.pod2text.data.version.2 \
+	rules_parser.ml \
+	rules_parser.mli \
+	rules_scanner.ml \
+	stamp-rules-parser
 
 SUFFIXES = .cmo .cmi .cmx .ml .mli .mll .mly
