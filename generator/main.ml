@@ -213,7 +213,11 @@ Run it from the top source directory using the command
   output_to "customize/customize-synopsis.pod" generate_customize_synopsis_pod;
   output_to "customize/customize-options.pod" generate_customize_options_pod;
 
-  (* Run the rules compiler to generate inspection rules. *)
+  (* Run the rules compiler to generate test cases and inspection rules. *)
+  output_to "inspection/test1.c"
+            (Rules_compiler.compile "inspection/test1.rules");
+  output_to "inspection/test2.c"
+            (Rules_compiler.compile "inspection/test2.rules");
   output_to "inspection/rules.c"
             (Rules_compiler.compile "inspection/inspection.rules");
 

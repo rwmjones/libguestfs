@@ -1,0 +1,80 @@
+/* Libguestfs inspection rules unit test -*- prolog -*-
+ * Copyright (C) 2015-2016 Red Hat Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+Filesystem(fs) :-
+    (fs)*={{
+      const char *fses[] = { "/dev/sda1", "/dev/sda2", "/dev/sda3", NULL };
+      size_t i;
+      for (i = 0; fses[i] != NULL; ++i)
+        set_fs (fses[i]);
+      return 0;
+    }}.
+
+File("/dev/sda1", "/etc/fstab").
+File("/dev/sda1", "/etc/debian_version").
+File("/dev/sda2", "/etc/fstab").
+File("/dev/sda2", "/etc/redhat-release").
+File("/dev/sda2", "/etc/fedora-release").
+File("/dev/sda3", "/etc/fstab").
+File("/dev/sda3", "/etc/fedora-release") :- false.
+File("/dev/sda3", "/etc/redhat-release").
+
+Symlink("/dev/sda1", "/bin").
+
+Directory("/dev/sda1", "/lib").
+Directory("/dev/sda1", "/etc").
+Directory("/dev/sda2", "/bin").
+Directory("/dev/sda2", "/etc").
+Directory("/dev/sda2", "/lib").
+Directory("/dev/sda3", "/bin").
+Directory("/dev/sda3", "/etc").
+Directory("/dev/sda3", "/lib").
+
+UnixRoot(fs) :-
+    Filesystem(fs),
+    (Directory(fs, "/bin"); Symlink(fs, "/bin")),
+    (File(fs, "/etc/fstab"); Symlink(fs, "/etc/fstab")),
+    (Directory(fs, "/lib"); Symlink(fs, "/lib")).
+
+Distro(rootfs, "RHEL") :-
+    UnixRoot(rootfs),
+    File(rootfs, "/etc/redhat-release"),
+    ! File(rootfs, "/etc/fedora-release").
+
+Distro(rootfs, "Fedora") :-
+    UnixRoot(rootfs),
+    File(rootfs, "/etc/fedora-release").
+
+Distro(rootfs, "Debian") :-
+    UnixRoot(rootfs),
+    File(rootfs, "/etc/debian_version").
+
+ProductName(rootfs, "Fedora", product_name) :-
+    Filesystem(rootfs),
+    Distro(rootfs, "Fedora"),
+    (product_name)={{
+      set_product_name ("Fedora release 23 (Twenty Three)");
+      return 0;
+    }}.
+
+/* This rule is checked by the test harness. */
+TestOK :-
+    Distro("/dev/sda1", "Debian"),
+    Distro("/dev/sda2", "Fedora"),
+    Distro("/dev/sda3", "RHEL"),
+    ProductName("/dev/sda2", "Fedora", "Fedora release 23 (Twenty Three)").

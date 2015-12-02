@@ -265,6 +265,9 @@ inspection/inspection.c
 inspection/match.c
 inspection/mount.c
 inspection/stringsbuf.c
+inspection/test-harness.c
+inspection/test1.c
+inspection/test2.c
 inspection/utils.c
 inspector/inspector.c
 java/com_redhat_et_libguestfs_GuestFS.c

@@ -18,7 +18,9 @@
 include $(top_srcdir)/subdir-rules.mk
 
 generator_built = \
-	rules.c
+	rules.c \
+	test1.c \
+	test2.c
 
 BUILT_SOURCES = \
 	$(generator_built)
@@ -90,3 +92,42 @@ stamp-guestfs-inspection.pod: guestfs-inspection.pod
 	  --license GPLv2+ \
 	  $<
 	touch $@
+
+# Tests.
+
+LOG_COMPILER = $(VG)
+TESTS_ENVIRONMENT = $(top_builddir)/run --test
+
+TESTS = test1 test2
+check_PROGRAMS = $(TESTS)
+
+test1_SOURCES = \
+	../daemon/cleanups.c \
+	../daemon/cleanups.h \
+	facts.c \
+	rules.h \
+	stringsbuf.c \
+	stringsbuf.h \
+	test-harness.c \
+	test1.c
+
+test1_LDADD = $(guestfs_inspection_LDADD)
+test1_CPPFLAGS = $(guestfs_inspection_CPPFLAGS)
+test1_CFLAGS = $(guestfs_inspection_CFLAGS)
+
+test2_SOURCES = \
+	../daemon/cleanups.c \
+	../daemon/cleanups.h \
+	facts.c \
+	rules.h \
+	stringsbuf.c \
+	stringsbuf.h \
+	test-harness.c \
+	test2.c
+
+test2_LDADD = $(guestfs_inspection_LDADD)
+test2_CPPFLAGS = $(guestfs_inspection_CPPFLAGS)
+test2_CFLAGS = $(guestfs_inspection_CFLAGS)
+
+check-valgrind:
+	$(MAKE) VG="@VG@" check

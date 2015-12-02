@@ -1,0 +1,116 @@
+/* Libguestfs inspection rules unit test -*- prolog -*-
+ * Copyright (C) 2015-2016 Red Hat Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+/* Test false, true expressions. */
+TestTrue1.
+TestTrue2 :- true.
+TestFalse :- false.
+
+/* Basic boolean expressions. */
+TestAnd1 :- true, true.
+TestAnd2 :- true, false.
+TestAnd3 :- false, false.
+TestAnd4 :- false, true.
+TestOr1 :- true; true.
+TestOr2 :- true; false.
+TestOr3 :- false; false.
+TestOr4 :- false; true.
+TestNot1 :- !TestTrue1.
+TestNot2 :- !TestFalse.
+
+/* Precedence of AND and OR operators. */
+TestPrec :- true; true, false. /* should be parsed as true; (true, false) */
+
+/* Parentheses. */
+TestParen1 :- (true, true); false.
+TestParen2 :- false; (true, true).
+TestParen3 :- (true; false), true.
+TestParen4 :- true, (true; false).
+
+/* Cartesian product. */
+TestCartesian(x,y) :- true.
+
+/* Boolean code. */
+TestCTrue :- {{ return 1; }}.
+TestCFalse :- {{ return 0; }}.
+
+/* Assignment code. */
+TestCAssign1(x) :- (x)={{ set_x ("123"); return 0; }}.
+TestCAssign2(x,y) :- (x,y)={{ set_x_y ("123", "456"); return 0; }}.
+TestCAssign3(x,y,z) :- (x,y,z)={{ set_x_y_z ("123", "456", "789"); return 0; }}.
+
+/* Assignment code for lists. */
+TestCListAssign1(x) :-
+    (x)*={{ /* no assignments */ return 0; }}.
+TestCListAssign2(x) :-
+    (x)*={{ set_x ("123"); return 0; }}.
+TestCListAssign3(x) :-
+    (x)*={{ set_x ("123"); set_x ("456"); return 0; }}.
+TestCListAssign4(x,y) :-
+    (x,y)*={{ /* no assignments */ return 0; }}.
+TestCListAssign5(x,y) :-
+    (x,y)*={{ set_x_y ("123", "456"); return 0; }}.
+TestCListAssign6(x,y) :-
+    (x,y)*={{ set_x_y ("123", "456"); set_x_y ("456", "789"); return 0; }}.
+
+/* These assignments only differ in a small amount of checking code. */
+TestCListAssign7(x,y) :-
+    (x,y)?={{ /* no assignments */ return 0; }}.
+TestCListAssign8(x,y) :-
+    (x,y)?={{ set_x_y ("123", "456"); return 0; }}.
+TestCListAssign9(x,y) :-
+    (x,y)+={{ set_x_y ("123", "456"); return 0; }}.
+TestCListAssign10(x,y) :-
+    (x,y)+={{ set_x_y ("123", "456"); set_x_y ("456", "789"); return 0; }}.
+
+/* Check no clashes in generated code with commonly used variables. */
+TestCAssignClash(i,j,fact,verbose,args,env) :-
+    (i,j,fact,verbose,args,env)={{
+      set_i_j_fact_verbose_args_env ("1", "2", "3", "4", "5", "6");
+      return 0;
+    }}.
+
+/* This rule is checked by the test harness. */
+TestOK :-
+    TestTrue1, TestTrue2, !TestFalse,
+    TestAnd1, !TestAnd2, !TestAnd3, !TestAnd4,
+    TestOr1, TestOr2, !TestOr3, TestOr4,
+    !TestNot1, TestNot2,
+    TestPrec,
+    TestParen1, TestParen2, TestParen3, TestParen4,
+    TestCartesian("123", "123"),
+    TestCartesian("123", "456"),
+    TestCartesian("123", "789"),
+    TestCartesian("456", "123"), /* etc etc */
+    TestCTrue, !TestCFalse,
+    TestCAssign1("123"), TestCAssign2("123", "456"),
+    TestCAssign3("123", "456", "789"),
+    /* no assignments to TestCListAssign1 */
+    TestCListAssign2("123"),
+    TestCListAssign3("123"),
+    TestCListAssign3("456"),
+    /* no assignments to TestCListAssign4 */
+    TestCListAssign5("123", "456"),
+    TestCListAssign6("123", "456"),
+    TestCListAssign6("456", "789"),
+    /* no assignments to TestCListAssign7 */
+    TestCListAssign8("123", "456"),
+    TestCListAssign9("123", "456"),
+    TestCListAssign10("123", "456"),
+    TestCListAssign10("456", "789"),
+    TestCAssignClash("1", "2", "3", "4", "5", "6").
