@@ -558,6 +558,11 @@ L<virt-get-kernel(1)> command and documentation.
 Gnulib is used as a portability library.  A copy of gnulib is included
 under here.
 
+=item F<inspection>
+
+Inspection.  See L<guestfs(3)/INSPECTION> and
+L<guestfs-inspection(8)>.
+
 =item F<inspector>
 
 L<virt-inspector(1)>, the virtual machine image inspector.
@@ -837,6 +842,7 @@ Optionally do a full release of the development branch.
 L<guestfs(3)>,
 L<guestfs-building(1)>,
 L<guestfs-examples(3)>,
+L<guestfs-inspection(8)>,
 L<guestfs-internals(3)>,
 L<guestfs-performance(1)>,
 L<guestfs-release-notes(1)>,

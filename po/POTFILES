@@ -259,6 +259,13 @@ gobject/src/struct-version.c
 gobject/src/struct-xattr.c
 gobject/src/struct-xfsinfo.c
 gobject/src/tristate.c
+inspection/detect.c
+inspection/facts.c
+inspection/inspection.c
+inspection/match.c
+inspection/mount.c
+inspection/stringsbuf.c
+inspection/utils.c
 inspector/inspector.c
 java/com_redhat_et_libguestfs_GuestFS.c
 lua/lua-guestfs.c

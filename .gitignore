@@ -252,6 +252,10 @@ Makefile.in
 /haskell/Guestfs030Config
 /haskell/Guestfs050LVCreate
 /haskell/Guestfs.hs
+/inspection/guestfs-inspection
+/inspection/guestfs-inspection.8
+/inspection/rules.c
+/inspection/stamp-guestfs-inspection.pod
 /inspector/actual-*.xml
 /inspector/stamp-virt-inspector.pod
 /inspector/test-xmllint.sh

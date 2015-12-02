@@ -213,6 +213,10 @@ Run it from the top source directory using the command
   output_to "customize/customize-synopsis.pod" generate_customize_synopsis_pod;
   output_to "customize/customize-options.pod" generate_customize_options_pod;
 
+  (* Run the rules compiler to generate inspection rules. *)
+  output_to "inspection/rules.c"
+            (Rules_compiler.compile "inspection/inspection.rules");
+
   (* Generate the list of files generated -- last. *)
   printf "generated %d lines of code\n" (get_lines_generated ());
   let files = List.sort compare (get_files_generated ()) in

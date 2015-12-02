@@ -194,7 +194,7 @@ noinst_DATA = stamp-generator
 # Git removes empty directories, so in cases where the
 # generator is creating the sole file in a directory, we
 # have to create the directory first.
-stamp-generator: generator
+stamp-generator: generator $(wildcard $(top_srcdir)/inspection/*.rules)
 	mkdir -p $(top_srcdir)/perl/lib/Sys
 	mkdir -p $(top_srcdir)/ruby/ext/guestfs
 	mkdir -p $(top_srcdir)/java/com/redhat/et/libguestfs

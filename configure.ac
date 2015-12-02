@@ -205,6 +205,7 @@ AC_CONFIG_FILES([Makefile
                  golang/Makefile
                  golang/examples/Makefile
                  haskell/Makefile
+                 inspection/Makefile
                  inspector/Makefile
                  java/Makefile
                  java/examples/Makefile

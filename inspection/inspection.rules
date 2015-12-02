@@ -1,0 +1,476 @@
+/* Libguestfs inspection rules -*- prolog -*-
+ * Copyright (C) 2009-2016 Red Hat Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
+/* To understand what's going on here, it's recommended that you read
+ * guestfs-inspection(8) (inspection/guestfs-inspection.pod) first.
+ */
+
+{{
+#include "inspection.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <errno.h>
+}}
+
+/* Whole block devices. */
+BlockDevice(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_block_devices ();
+      if (devs == NULL) return -1;
+      for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
+      return 0;
+    }}.
+
+/* Partitions. */
+Partition(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_partitions ();
+      if (devs == NULL) return -1;
+      /* Ignore partitions with type byte 0x42 (RHBZ#887520). */
+      for (size_t i = 0; devs[i] != NULL; ++i) {
+        int r = get_partition_mbr_id (devs[i]);
+        if (r == -1) return -1;
+        if (r != 0x42) set_dev (devs[i]);
+      }
+      return 0;
+    }}.
+
+/* LVM2 logical volumes. */
+LV(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_lvs ();
+      if (devs == NULL) return -1;
+      for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
+      return 0;
+    }}.
+
+/* /dev/md* devices. */
+MDDev(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_mddevs ();
+      if (devs == NULL) return -1;
+      for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
+      return 0;
+    }}.
+
+/* Windows LDM voumes. */
+LDMVol(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_ldmvols ();
+      if (devs == NULL) return -1;
+      for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
+      return 0;
+    }}.
+
+/* Windows LDM partitions. */
+LDMPart(dev) :-
+    (dev)*={{
+      CLEANUP_FREE_STRING_LIST char **devs = get_all_ldmparts ();
+      if (devs == NULL) return -1;
+      for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
+      return 0;
+    }}.
+
+/* Device(dev) is just a group name for block devices, partitions etc. */
+Device(dev) :-
+    BlockDevice(dev); Partition(dev); LV(dev);
+    MDDev(dev); LDMVol(dev); LDMPart(dev).
+
+/* Map a filesystem to its VFS type (from blkid). */
+VFSType(fs, vfs_type) :-
+    Device(fs),
+    (vfs_type)?={{
+      CLEANUP_FREE char *vfs_type = get_vfs_type (fs);
+      if (vfs_type != NULL) set_vfs_type (vfs_type);
+      return 0;
+    }}.
+
+/* A device contains a mountable filesystem (not swap, empty, etc). */
+Mountable(fs) :-
+    Device(fs),
+    {{ return is_mountable (fs); }}.
+
+/* Where a filesystem is btrfs and mountable, get the subvolumes. */
+BtrfsSubvolume(subvol) :-
+    Device(fs),
+    Mountable(fs),
+    VFSType(fs, "btrfs"),
+    (subvol)*={{
+      size_t i;
+      CLEANUP_FREE_STRING_LIST char **paths = get_all_btrfs_subvolumes (fs);
+      if (paths == NULL) return -1;
+      for (i = 0; paths[i] != NULL; ++i) {
+        CLEANUP_FREE char *subvol;
+        if (asprintf (&subvol, "btrfsvol:%s/%s", fs, paths[i]) == -1) {
+          perror ("asprintf");
+          exit (EXIT_FAILURE);
+        }
+        set_subvol (subvol);
+      }
+      return 0;
+    }}.
+VFSType(subvol, "btrfs") :- BtrfsSubvolume(subvol).
+
+/* Ignore all *_member types.  In libblkid these are returned
+ * for things which are members of some RAID or LVM set, most
+ * importantly "LVM2_member" which is a PV.  Also ignore
+ * crypto_LUKS (LUKS encrypted partition).
+ */
+ContainerDevice(dev) :-
+    VFSType(dev, vfs_type),
+    {{ return STRSUFFIX (vfs_type, "_member"); }}.
+ContainerDevice(dev) :-
+    VFSType(dev, "crypto_LUKS").
+
+/* Ignore all swap devices. */
+SwapDevice(dev) :- VFSType(dev, "swap").
+
+/* This rule generates one Filesystem(fs) fact per mountable
+ * filesystem found in the appliance.  A filesystem could be
+ * a device, partition, LV, btrfs subvolume, etc.
+ */
+Filesystem(fs) :-
+    !ContainerDevice(fs),
+    !SwapDevice(fs),
+    (Device(fs), Mountable(fs); BtrfsSubvolume(fs)).
+
+/* File(fs, filename) is true if filename is a regular file in fs.
+ * It also follows symlinks.
+ */
+File(fs, filename) :-
+    Filesystem(fs),
+    {{
+        int r;
+        CLEANUP_FREE char *relative_filename = NULL;
+        struct stat statbuf;
+
+        if (filename[0] != '/') return 0;
+        if (get_mount (fs, filename, &relative_filename) == -1)
+          return -1;
+        r = stat (relative_filename, &statbuf);
+        if (r == -1) {
+          if (errno == ENOENT || errno == ENOTDIR || errno == ELOOP)
+            return 0;
+          perror (relative_filename);
+          return -1;
+        }
+        return S_ISREG (statbuf.st_mode);
+    }}.
+
+/* Directory(fs, dirname) is true if dirname is a directory in fs.
+ * It also follows symlinks.
+ */
+Directory(fs, dirname) :-
+    Filesystem(fs),
+    {{
+        int r;
+        CLEANUP_FREE char *relative_dirname = NULL;
+        struct stat statbuf;
+
+        if (dirname[0] != '/') return 0;
+        if (get_mount (fs, dirname, &relative_dirname) == -1)
+          return -1;
+        r = stat (relative_dirname, &statbuf);
+        if (r == -1) {
+          if (errno == ENOENT || errno == ENOTDIR || errno == ELOOP)
+            return 0;
+          perror (relative_dirname);
+          return -1;
+        }
+        return S_ISDIR (statbuf.st_mode);
+    }}.
+
+/* Symlink(fs, filename) is true if filename is a symlink. */
+Symlink(fs, filename) :-
+    Filesystem(fs),
+    {{
+        int r;
+        CLEANUP_FREE char *relative_filename = NULL;
+        struct stat statbuf;
+
+        if (filename[0] != '/') return 0;
+        if (get_mount (fs, filename, &relative_filename) == -1)
+          return -1;
+        r = stat (relative_filename, &statbuf);
+        if (r == -1) {
+          if (errno == ENOENT || errno == ENOTDIR || errno == ELOOP)
+            return 0;
+          perror (relative_filename);
+          return -1;
+        }
+        return S_ISLNK (statbuf.st_mode);
+    }}.
+
+/* grub or grub2 /boot */
+GrubBoot(fs) :-
+    Filesystem(fs),
+    File(fs, "/grub/menu.lst"),
+    File(fs, "/grub/grub.conf"),
+    File(fs, "/grub2/grub.cfg").
+
+/* FreeBSD root. */
+FreeBSDRoot(fs) :-
+    Filesystem(fs),
+    Directory(fs, "/bin"),
+    Directory(fs, "/etc"),
+    File(fs, "/etc/freebsd-update.conf"),
+    File(fs, "/etc/fstab").
+
+/* NetBSD root. */
+NetBSDRoot(fs) :-
+    Filesystem(fs),
+    Directory(fs, "/bin"),
+    Directory(fs, "/etc"),
+    File(fs, "/netbsd"),
+    File(fs, "/etc/fstab"),
+    File(fs, "/etc/release").
+
+/* OpenBSD root. */
+OpenBSDRoot(fs) :-
+    Filesystem(fs),
+    Directory(fs, "/bin"),
+    Directory(fs, "/etc"),
+    File(fs, "/bsd"),
+    File(fs, "/etc/fstab"),
+    File(fs, "/etc/motd").
+
+/* Hurd root. */
+HurdRoot(fs) :-
+    Filesystem(fs),
+    File(fs, "/hurd/console"),
+    File(fs, "/hurd/hello"),
+    File(fs, "/hurd/null").
+
+/* Minix root. */
+MinixRoot(fs) :-
+    Filesystem(fs),
+    File(fs, "/service/vm"),
+    File(fs, "/etc/fstab"),
+    File(fs, "/etc/version").
+
+/* Linux root (any distro). */
+LinuxRoot(fs) :-
+    Filesystem(fs),
+    Directory(fs, "/etc"),
+    File(fs, "/etc/fstab"),
+    (Directory(fs, "/bin"); Symlink(fs, "/bin")),
+    !FreeBSDRoot(fs),
+    !NetBSDRoot(fs),
+    !OpenBSDRoot(fs),
+    !HurdRoot(fs),
+    !MinixRoot(fs).
+
+/* Is it Linux using /etc/os-release?  (Linux systemd). */
+LinuxRootWithOSRelease(fs) :-
+    LinuxRoot(fs),
+    File(fs, "/etc/os-release").
+
+Distro(fs, distro) :-
+    LinuxRootWithOSRelease(fs),
+    (distro)?={{
+      int r;
+      CLEANUP_FREE char *distro = NULL;
+      if ((r = get_distro_from_os_release (fs, &distro)) <= 0)
+        return r;
+      set_distro (distro);
+      return 0;
+    }}.
+
+Version(fs, major, minor) :-
+    LinuxRootWithOSRelease(fs),
+    (major, minor)?={{
+      int r;
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if ((r = get_version_from_os_release (fs, &major, &minor)) <= 0)
+        return r;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+ProductName(fs, product_name) :-
+    LinuxRootWithOSRelease(fs),
+    (product_name)?={{
+      int r;
+      CLEANUP_FREE char *product_name = NULL;
+      if ((r = get_product_name_from_os_release (fs, &product_name)) <= 0)
+        return r;
+      set_product_name (product_name);
+      return 0;
+    }}.
+
+/* Is it Linux using /etc/lsb-release?  (Linux Standards Base). */
+LinuxRootWithLSBRelease(fs) :-
+    LinuxRoot(fs),
+    File(fs, "/etc/lsb-release"),
+    !LinuxRootWithOSRelease(fs). /* prefer /etc/os-release */
+
+Distro(fs, distro) :-
+    LinuxRootWithLSBRelease(fs),
+    (distro)?={{
+      int r;
+      CLEANUP_FREE char *distro = NULL;
+      if ((r = get_distro_from_lsb_release (fs, &distro)) <= 0)
+        return r;
+      set_distro (distro);
+      return 0;
+    }}.
+
+Version(fs, major, minor) :-
+    LinuxRootWithLSBRelease(fs),
+    (major, minor)?={{
+      int r;
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if ((r = get_version_from_lsb_release (fs, &major, &minor)) <= 0)
+        return r;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+ProductName(fs, product_name) :-
+    LinuxRootWithLSBRelease(fs),
+    (product_name)?={{
+      int r;
+      CLEANUP_FREE char *product_name = NULL;
+      if ((r = get_product_name_from_lsb_release (fs, &product_name)) <= 0)
+        return r;
+      set_product_name (product_name);
+      return 0;
+    }}.
+
+/* Fall back on /etc/*-release files to determine the distro, version and
+ * product name.
+ */
+LinuxRootWithReleaseFile(fs, "/etc/oracle-release") :-
+    LinuxRoot(fs),
+    !LinuxRootWithOSRelease(fs), !LinuxRootWithLSBRelease(fs),
+    File(fs, "/etc/oracle-release").
+Distro(fs, "oracle-linux") :-
+    LinuxRootWithReleaseFile(fs, "/etc/oracle-release").
+Version(fs, major, minor) :-
+    LinuxRootWithReleaseFile(fs, "/etc/oracle-release"),
+    (major, minor)={{
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if (get_version_from_oracle_release (fs, &major, &minor) == -1)
+        return -1;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+LinuxRootWithReleaseFile(fs, "/etc/centos-release") :-
+    LinuxRoot(fs),
+    !LinuxRootWithOSRelease(fs), !LinuxRootWithLSBRelease(fs),
+    File(fs, "/etc/centos-release").
+Distro(fs, "centos") :-
+    LinuxRootWithReleaseFile(fs, "/etc/centos-release").
+Version(fs, major, minor) :-
+    LinuxRootWithReleaseFile(fs, "/etc/centos-release"),
+    (major, minor)={{
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if (get_version_from_centos_release (fs, &major, &minor) == -1)
+        return -1;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+LinuxRootWithReleaseFile(fs, "/etc/altlinux-release") :-
+    LinuxRoot(fs),
+    !LinuxRootWithOSRelease(fs), !LinuxRootWithLSBRelease(fs),
+    File(fs, "/etc/altlinux-release").
+Distro(fs, "altlinux") :-
+    LinuxRootWithReleaseFile(fs, "/etc/altlinux-release").
+Version(fs, major, minor) :-
+    LinuxRootWithReleaseFile(fs, "/etc/altlinux-release"),
+    (major, minor)={{
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if (get_version_from_altlinux_release (fs, &major, &minor) == -1)
+        return -1;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+/* Handle the fallback case of /etc/redhat-release. */
+LinuxRootWithReleaseFile(fs, "/etc/redhat-release") :-
+    LinuxRoot(fs),
+    !LinuxRootWithOSRelease(fs), !LinuxRootWithLSBRelease(fs),
+    !LinuxRootWithReleaseFile(fs, "/etc/oracle-release"),
+    !LinuxRootWithReleaseFile(fs, "/etc/centos-release"),
+    !LinuxRootWithReleaseFile(fs, "/etc/altlinux-release"),
+    File(fs, "/etc/redhat-release").
+Distro(fs, "fedora") :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    {{ return match_redhat_release_fedora (fs); }}.
+Distro(fs, "rhel") :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    {{ return match_redhat_release_rhel (fs); }}.
+Distro(fs, "centos") :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    {{ return match_redhat_release_centos (fs); }}.
+Distro(fs, "scientificlinux") :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    {{ return match_redhat_release_scientific_linux (fs); }}.
+Distro(fs, "redhat-based") :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    !Distro(fs, "fedora"),
+    !Distro(fs, "rhel"),
+    !Distro(fs, "centos"),
+    !Distro(fs, "scientificlinux").
+
+Version(fs, major, minor) :-
+    LinuxRootWithReleaseFile(fs, "/etc/redhat-release"),
+    (major, minor)={{
+      CLEANUP_FREE char *major = NULL, *minor = NULL;
+      if (get_version_from_redhat_release (fs, &major, &minor) == -1)
+        return -1;
+      set_major_minor (major, minor);
+      return 0;
+    }}.
+
+/* Get the product name from a generic Linux release file. */
+ProductName(fs, product_name) :-
+    LinuxRootWithReleaseFile(fs, release_file),
+    (product_name)={{
+      CLEANUP_FREE char *product_name = first_line_of_file (fs, release_file);
+      set_product_name (product_name);
+      return 0;
+    }}.
+
+/* XXX debian, arch-linux etc release files */
+
+/* XXX Linux architecture, fstab, hostname */
+
+
+
+/* XXX CoreOS etc. */
+
+
+
+
+
+
+
+
+/*
+Has_fstab(rootfs) :-
+    Unix_root(fs),
+    File(rootfs, "/etc/fstab").
+Mount(rootfs, dev, mountpoint) :-
+    Has_fstab(rootfs),
+    (dev, mountpoint)*={{
+        // code to return (dev, mountpoint) pairs from /etc/fstab
+    }}.
+*/

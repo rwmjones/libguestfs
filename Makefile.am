@@ -42,6 +42,7 @@ SUBDIRS += src docs examples po
 
 # The daemon and the appliance.
 if ENABLE_DAEMON
+SUBDIRS += inspection
 SUBDIRS += daemon
 SUBDIRS += tests/daemon
 endif
@@ -290,6 +291,7 @@ all-local:
 	find $(DIST_SUBDIRS) -name '*.c' -o -name '*.pl' -o -name '*.pm' | \
 	grep -v -E '^(examples|gnulib|gobject/docs|perl/(blib|examples)|po-docs|tests|test-data)/' | \
 	grep -v -E '/((guestfs|rc)_protocol\.c)$$' | \
+	grep -v -E '^inspection/rules\.c$$' | \
 	grep -v -E '^python/utils\.c$$' | \
 	LC_ALL=C sort > po/POTFILES
 	cd $(srcdir); \

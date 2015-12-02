@@ -3545,6 +3545,7 @@ Other libguestfs topics:
 L<guestfs-building(1)>,
 L<guestfs-faq(1)>,
 L<guestfs-hacking(1)>,
+L<guestfs-inspection(8)>,
 L<guestfs-internals(1)>,
 L<guestfs-performance(1)>,
 L<guestfs-release-notes(1)>,
