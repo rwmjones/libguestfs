@@ -51,40 +51,48 @@ Partition(dev) :-
     }}.
 
 /* LVM2 logical volumes. */
+/*
 LV(dev) :-
     (dev)*={{
       CLEANUP_FREE_STRING_LIST char **devs = get_all_lvs ();
       if (devs == NULL) return -1;
       for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
       return 0;
-    }}.
+    }}. */
+LV(dev) :- false.
 
 /* /dev/md* devices. */
+/*
 MDDev(dev) :-
     (dev)*={{
       CLEANUP_FREE_STRING_LIST char **devs = get_all_mddevs ();
       if (devs == NULL) return -1;
       for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
       return 0;
-    }}.
+    }}. */
+MDDev(dev) :- false.
 
 /* Windows LDM voumes. */
+/*
 LDMVol(dev) :-
     (dev)*={{
       CLEANUP_FREE_STRING_LIST char **devs = get_all_ldmvols ();
       if (devs == NULL) return -1;
       for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
       return 0;
-    }}.
+    }}. */
+LDMVol(dev) :- false.
 
 /* Windows LDM partitions. */
+/*
 LDMPart(dev) :-
     (dev)*={{
       CLEANUP_FREE_STRING_LIST char **devs = get_all_ldmparts ();
       if (devs == NULL) return -1;
       for (size_t i = 0; devs[i] != NULL; ++i) set_dev (devs[i]);
       return 0;
-    }}.
+    }}. */
+LDMPart(dev) :- false.
 
 /* Device(dev) is just a group name for block devices, partitions etc. */
 Device(dev) :-
@@ -106,6 +114,7 @@ Mountable(fs) :-
     {{ return is_mountable (fs); }}.
 
 /* Where a filesystem is btrfs and mountable, get the subvolumes. */
+/*
 BtrfsSubvolume(subvol) :-
     Device(fs),
     Mountable(fs),
@@ -124,7 +133,8 @@ BtrfsSubvolume(subvol) :-
       }
       return 0;
     }}.
-VFSType(subvol, "btrfs") :- BtrfsSubvolume(subvol).
+VFSType(subvol, "btrfs") :- BtrfsSubvolume(subvol). */
+BtrfsSubvolume(subvol) :- false.
 
 /* Ignore all *_member types.  In libblkid these are returned
  * for things which are members of some RAID or LVM set, most
