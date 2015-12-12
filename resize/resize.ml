@@ -21,13 +21,12 @@ open Printf
 open Common_utils
 open Common_gettext.Gettext
 
+open Cmdline
+
 module G = Guestfs
 
 (* Minimum surplus before we create an extra partition. *)
 let min_extra_partition = 10L *^ 1024L *^ 1024L
-
-(* Command line argument parsing. *)
-type align_first_t = [ `Never | `Always | `Auto ]
 
 (* Source partition type. *)
 type parttype = MBR | GPT
@@ -137,190 +136,9 @@ let string_of_expand_content_method = function
   | BtrfsFilesystemResize -> s_"btrfs-filesystem-resize"
   | XFSGrowFS -> s_"xfs_growfs"
 
-type unknown_filesystems_mode =
-  | UnknownFsIgnore
-  | UnknownFsWarn
-  | UnknownFsError
-
 (* Main program. *)
 let main () =
-  let infile, outfile, align_first, alignment, copy_boot_loader,
-    deletes,
-    dryrun, expand, expand_content, extra_partition, format, ignores,
-    lv_expands, machine_readable, ntfsresize_force, output_format,
-    resizes, resizes_force, shrink, sparse, unknown_fs_mode =
-
-    let add xs s = xs := s :: !xs in
-
-    let align_first = ref "auto" in
-    let alignment = ref 128 in
-    let copy_boot_loader = ref true in
-    let deletes = ref [] in
-    let dryrun = ref false in
-    let expand = ref "" in
-    let set_expand s =
-      if s = "" then error (f_"empty --expand option")
-      else if !expand <> "" then error (f_"--expand option given twice")
-      else expand := s
-    in
-    let expand_content = ref true in
-    let extra_partition = ref true in
-    let format = ref "" in
-    let ignores = ref [] in
-    let lv_expands = ref [] in
-    let machine_readable = ref false in
-    let ntfsresize_force = ref false in
-    let output_format = ref "" in
-    let resizes = ref [] in
-    let resizes_force = ref [] in
-    let shrink = ref "" in
-    let set_shrink s =
-      if s = "" then error (f_"empty --shrink option")
-      else if !shrink <> "" then error (f_"--shrink option given twice")
-      else shrink := s
-    in
-    let sparse = ref true in
-    let unknown_fs_mode = ref "warn" in
-
-    let ditto = " -\"-" in
-    let argspec = [
-      "--align-first", Arg.Set_string align_first, s_"never|always|auto" ^ " " ^ s_"Align first partition (default: auto)";
-      "--alignment", Arg.Set_int alignment,   s_"sectors" ^ " " ^ s_"Set partition alignment (default: 128 sectors)";
-      "--no-copy-boot-loader", Arg.Clear copy_boot_loader, " " ^ s_"Don't copy boot loader";
-      "-d",        Arg.Unit set_verbose,      " " ^ s_"Enable debugging messages";
-      "--debug",   Arg.Unit set_verbose,      ditto;
-      "--delete",  Arg.String (add deletes),  s_"part" ^ " " ^ s_"Delete partition";
-      "--expand",  Arg.String set_expand,     s_"part" ^ " " ^ s_"Expand partition";
-      "--no-expand-content", Arg.Clear expand_content, " " ^ s_"Don't expand content";
-      "--no-extra-partition", Arg.Clear extra_partition, " " ^ s_"Don't create extra partition";
-      "--format",  Arg.Set_string format,     s_"format" ^ " " ^ s_"Format of input disk";
-      "--ignore",  Arg.String (add ignores),  s_"part" ^ " " ^ s_"Ignore partition";
-      "--lv-expand", Arg.String (add lv_expands), s_"lv" ^ " " ^ s_"Expand logical volume";
-      "--LV-expand", Arg.String (add lv_expands), s_"lv" ^ ditto;
-      "--lvexpand", Arg.String (add lv_expands), s_"lv" ^ ditto;
-      "--LVexpand", Arg.String (add lv_expands), s_"lv" ^ ditto;
-      "--machine-readable", Arg.Set machine_readable, " " ^ s_"Make output machine readable";
-      "-n",        Arg.Set dryrun,            " " ^ s_"Don't perform changes";
-      "--dry-run", Arg.Set dryrun,            " " ^ s_"Don't perform changes";
-      "--dryrun",  Arg.Set dryrun,            ditto;
-      "--ntfsresize-force", Arg.Set ntfsresize_force, " " ^ s_"Force ntfsresize";
-      "--output-format", Arg.Set_string output_format, s_"format" ^ " " ^ s_"Format of output disk";
-      "--resize",  Arg.String (add resizes),  s_"part=size" ^ " " ^ s_"Resize partition";
-      "--resize-force", Arg.String (add resizes_force), s_"part=size" ^ " " ^ s_"Forcefully resize partition";
-      "--shrink",  Arg.String set_shrink,     s_"part" ^ " " ^ s_"Shrink partition";
-      "--no-sparse", Arg.Clear sparse,        " " ^ s_"Turn off sparse copying";
-      "--unknown-filesystems", Arg.Set_string unknown_fs_mode,
-                                              s_"ignore|warn|error" ^ " " ^ s_"Behaviour on expand unknown filesystems (default: warn)";
-    ] in
-    let argspec = set_standard_options argspec in
-    let disks = ref [] in
-    let anon_fun s = disks := s :: !disks in
-    let usage_msg =
-      sprintf (f_"\
-%s: resize a virtual machine disk
-
-A short summary of the options is given below.  For detailed help please
-read the man page virt-resize(1).
-")
-        prog in
-    Arg.parse argspec anon_fun usage_msg;
-
-    if verbose () then (
-      printf "command line:";
-      List.iter (printf " %s") (Array.to_list Sys.argv);
-      print_newline ()
-    );
-
-    (* Dereference the rest of the args. *)
-    let alignment = !alignment in
-    let copy_boot_loader = !copy_boot_loader in
-    let deletes = List.rev !deletes in
-    let dryrun = !dryrun in
-    let expand = match !expand with "" -> None | str -> Some str in
-    let expand_content = !expand_content in
-    let extra_partition = !extra_partition in
-    let format = match !format with "" -> None | str -> Some str in
-    let ignores = List.rev !ignores in
-    let lv_expands = List.rev !lv_expands in
-    let machine_readable = !machine_readable in
-    let ntfsresize_force = !ntfsresize_force in
-    let output_format = match !output_format with "" -> None | str -> Some str in
-    let resizes = List.rev !resizes in
-    let resizes_force = List.rev !resizes_force in
-    let shrink = match !shrink with "" -> None | str -> Some str in
-    let sparse = !sparse in
-    let unknown_fs_mode = !unknown_fs_mode in
-
-    if alignment < 1 then
-      error (f_"alignment cannot be < 1");
-    let alignment = Int64.of_int alignment in
-
-    let align_first =
-      match !align_first with
-      | "never" -> `Never
-      | "always" -> `Always
-      | "auto" -> `Auto
-      | _ ->
-        error (f_"unknown --align-first option: use never|always|auto") in
-
-    let unknown_fs_mode =
-      match unknown_fs_mode with
-      | "ignore" -> UnknownFsIgnore
-      | "warn" -> UnknownFsWarn
-      | "error" -> UnknownFsError
-      | _ ->
-        error (f_"unknown --unknown-filesystems: use ignore|warn|error") in
-
-    (* No arguments and machine-readable mode?  Print out some facts
-     * about what this binary supports.  We only need to print out new
-     * things added since this option, or things which depend on features
-     * of the appliance.
-     *)
-    if !disks = [] && machine_readable then (
-      printf "virt-resize\n";
-      printf "ntfsresize-force\n";
-      printf "32bitok\n";
-      printf "128-sector-alignment\n";
-      printf "alignment\n";
-      printf "align-first\n";
-      printf "infile-uri\n";
-      let g = open_guestfs () in
-      g#add_drive "/dev/null";
-      g#launch ();
-      if g#feature_available [| "ntfsprogs"; "ntfs3g" |] then
-        printf "ntfs\n";
-      if g#feature_available [| "btrfs" |] then
-        printf "btrfs\n";
-      if g#feature_available [| "xfs" |] then
-        printf "xfs\n";
-      exit 0
-    );
-
-    (* Verify we got exactly 2 disks. *)
-    let infile, outfile =
-      match List.rev !disks with
-      | [infile; outfile] -> infile, outfile
-      | _ ->
-        error (f_"usage is: %s [--options] indisk outdisk") prog in
-
-    (* Simple-minded check that the user isn't trying to use the
-     * same disk for input and output.
-     *)
-    if infile = outfile then
-      error (f_"you cannot use the same disk image for input and output");
-
-    (* infile can be a URI. *)
-    let infile =
-      try (infile, URI.parse_uri infile)
-      with Invalid_argument "URI.parse_uri" ->
-        error (f_"error parsing URI '%s'. Look for error messages printed above.")
-          infile in
-
-    infile, outfile, align_first, alignment, copy_boot_loader,
-    deletes,
-    dryrun, expand, expand_content, extra_partition, format, ignores,
-    lv_expands, machine_readable, ntfsresize_force, output_format,
-    resizes, resizes_force, shrink, sparse, unknown_fs_mode in
+  let cmdline = parse_cmdline () in
 
   (* Default to true, since NTFS/btrfs/XFS support are usually available. *)
   let ntfs_available = ref true in
@@ -330,14 +148,17 @@ read the man page virt-resize(1).
   (* Add in and out disks to the handle and launch. *)
   let connect_both_disks () =
     let g = open_guestfs () in
-    let _, { URI.path = path; protocol = protocol;
-             server = server; username = username;
-             password = password } = infile in
-    g#add_drive ?format ~readonly:true ~protocol ?server ?username ?secret:password path;
+    let { URI.path = path; protocol = protocol;
+          server = server; username = username;
+          password = password } = cmdline.infile_uri in
+    g#add_drive ?format:cmdline.format ~readonly:true
+                ~protocol ?server ?username ?secret:password path;
     (* The output disk is being created, so use cache=unsafe here. *)
-    g#add_drive ?format:output_format ~readonly:false ~cachemode:"unsafe"
-      outfile;
-    if not (quiet ()) then Progress.set_up_progress_bar ~machine_readable g;
+    g#add_drive ?format:cmdline.output_format ~readonly:false
+                ~cachemode:"unsafe" cmdline.outfile;
+    if not (quiet ()) then
+      Progress.set_up_progress_bar
+        ~machine_readable:cmdline.machine_readable g;
     g#launch ();
 
     (* Set the filter to /dev/sda, in case there are any rogue
@@ -354,7 +175,7 @@ read the man page virt-resize(1).
   in
 
   let g =
-    message (f_"Examining %s") (fst infile);
+    message (f_"Examining %s") cmdline.infile;
     let g = connect_both_disks () in
     g in
 
@@ -369,8 +190,8 @@ read the man page virt-resize(1).
     let insize = g#blockdev_getsize64 "/dev/sda" in
     let outsize = g#blockdev_getsize64 "/dev/sdb" in
     if verbose () then (
-      printf "%s size %Ld bytes\n" (fst infile) insize;
-      printf "%s size %Ld bytes\n" outfile outsize
+      printf "%s size %Ld bytes\n" cmdline.infile insize;
+      printf "%s size %Ld bytes\n" cmdline.outfile outsize
     );
     sectsize, insize, outsize in
 
@@ -390,10 +211,10 @@ read the man page virt-resize(1).
   (* Check the disks are at least as big as the bootloader. *)
   if insize < Int64.of_int max_bootloader then
     error (f_"%s: file is too small to be a disk image (%Ld bytes)")
-      (fst infile) insize;
+          cmdline.infile insize;
   if outsize < Int64.of_int max_bootloader then
     error (f_"%s: file is too small to be a disk image (%Ld bytes)")
-      outfile outsize;
+          cmdline.outfile outsize;
 
   (* Get the source partition type. *)
   let parttype, parttype_string =
@@ -405,7 +226,7 @@ read the man page virt-resize(1).
     | "gpt" -> GPT, "gpt"
     | _ ->
       error (f_"%s: unknown partition table type\nvirt-resize only supports MBR (DOS) and GPT partition tables.")
-        (fst infile) in
+            cmdline.infile in
 
   (* Build a data structure describing the source disk's partition layout. *)
   let get_partition_content =
@@ -549,7 +370,7 @@ read the man page virt-resize(1).
    * a particular partition or LV, and what method to use.
    *)
   let can_expand_content =
-    if expand_content then
+    if cmdline.expand_content then
       function
       | ContentUnknown -> false
       | ContentPV _ -> true
@@ -563,7 +384,7 @@ read the man page virt-resize(1).
       fun _ -> false
 
   and expand_content_method =
-    if expand_content then
+    if cmdline.expand_content then
       function
       | ContentUnknown -> assert false
       | ContentPV _ -> PVResize
@@ -597,7 +418,7 @@ read the man page virt-resize(1).
         try Hashtbl.find hash name
         with Not_found ->
           error (f_"%s: partition not found in the source disk image (this error came from '%s' option on the command line).  Try running this command: virt-filesystems --partitions --long -a %s")
-          name option (fst infile) in
+                name option cmdline.infile in
 
       if partition.p_operation = OpIgnore then
         error (f_"%s: partition already ignored, you cannot use it in '%s' option")
@@ -614,14 +435,14 @@ read the man page virt-resize(1).
     fun dev ->
       let p = find_partition ~option:"--ignore" dev in
       p.p_operation <- OpIgnore
-  ) ignores;
+  ) cmdline.ignores;
 
   (* Handle --delete option. *)
   List.iter (
     fun dev ->
       let p = find_partition ~option:"--delete" dev in
       p.p_operation <- OpDelete
-  ) deletes;
+  ) cmdline.deletes;
 
   (* Helper function to mark a partition for resizing.  It prevents the
    * user from trying to mark the same partition twice.  If the force
@@ -696,8 +517,9 @@ read the man page virt-resize(1).
     mark_partition_for_resize ~option ~force p newsize
   in
 
-  List.iter (do_resize ~option:"--resize") resizes;
-  List.iter (do_resize ~option:"--resize-force" ~force:true) resizes_force;
+  List.iter (do_resize ~option:"--resize") cmdline.resizes;
+  List.iter (do_resize ~option:"--resize-force" ~force:true)
+            cmdline.resizes_force;
 
   (* Helper function calculates the surplus space, given the total
    * required so far for the current partition layout, compared to
@@ -727,7 +549,8 @@ read the man page virt-resize(1).
         maxl64 [gpt_start_sects; max_bootloader_sects; first_part_start_sects] in
 
       (* Maximum space lost because of alignment of partitions. *)
-      let alignment_sects = alignment *^ Int64.of_int (nr_partitions + 1) in
+      let alignment_sects = cmdline.alignment *^
+                              Int64.of_int (nr_partitions + 1) in
 
       (* Add up the total max. overhead. *)
       let overhead_sects =
@@ -754,16 +577,16 @@ read the man page virt-resize(1).
   in
 
   (* Handle --expand and --shrink options. *)
-  if expand <> None && shrink <> None then
+  if cmdline.expand <> None && cmdline.shrink <> None then
     error (f_"you cannot use options --expand and --shrink together");
 
-  if expand <> None || shrink <> None then (
+  if cmdline.expand <> None || cmdline.shrink <> None then (
     let surplus = calculate_surplus () in
 
     if verbose () then
       printf "surplus before --expand or --shrink: %Ld\n" surplus;
 
-    (match expand with
+    (match cmdline.expand with
      | None -> ()
      | Some dev ->
          if surplus < 0L then
@@ -775,7 +598,7 @@ read the man page virt-resize(1).
          let oldsize = p.p_part.G.part_size in
          mark_partition_for_resize ~option p (oldsize +^ surplus)
     );
-    (match shrink with
+    (match cmdline.shrink with
      | None -> ()
      | Some dev ->
          if surplus > 0L then
@@ -812,14 +635,14 @@ read the man page virt-resize(1).
         try Hashtbl.find hash name
         with Not_found ->
           error (f_"%s: logical volume not found in the source disk image (this error came from '--lv-expand' option on the command line).  Try running this command: virt-filesystems --logical-volumes --long -a %s")
-            name (fst infile) in
+                name cmdline.infile in
       lv.lv_operation <- LVOpExpand
-  ) lv_expands;
+  ) cmdline.lv_expands;
 
   (* In case we need to error out on unknown/unhandled filesystems,
    * iterate on what we need to resize/expand.
    *)
-  (match unknown_fs_mode with
+  (match cmdline.unknown_fs_mode with
   | UnknownFsIgnore -> ()
   | UnknownFsWarn -> ()
   | UnknownFsError ->
@@ -933,7 +756,7 @@ read the man page virt-resize(1).
     if surplus > 0L then (
       let text =
         sprintf (f_"There is a surplus of %s.") (human_size surplus) ^
-        if extra_partition then (
+        if cmdline.extra_partition then (
           if surplus >= min_extra_partition then
             s_"  An extra partition will be created for the surplus."
           else
@@ -948,7 +771,7 @@ read the man page virt-resize(1).
     flush stdout
   );
 
-  if dryrun then exit 0;
+  if cmdline.dryrun then exit 0;
 
   (* Create a partition table.
    *
@@ -972,7 +795,7 @@ read the man page virt-resize(1).
     (* Try hard to initialize the partition table.  This might involve
      * relaunching another handle.
      *)
-    message (f_"Setting up initial partition table on %s") outfile;
+    message (f_"Setting up initial partition table on %s") cmdline.outfile;
 
     let last_error = ref "" in
     let rec initialize_partition_table g attempts =
@@ -1002,7 +825,7 @@ read the man page virt-resize(1).
    * https://secure.wikimedia.org/wikipedia/en/wiki/Master_Boot_Record
    * https://secure.wikimedia.org/wikipedia/en/wiki/GUID_Partition_Table
    *)
-  if copy_boot_loader then (
+  if cmdline.copy_boot_loader then (
     let bootsect = g#pread_device "/dev/sda" 446 0L in
     if String.length bootsect < 446 then
       error (f_"pread-device: short read");
@@ -1059,7 +882,7 @@ read the man page virt-resize(1).
       | n -> 1 + alignment_of (n /^ 2L)
     in
 
-    match align_first, can_fix_boot_loader () with
+    match cmdline.align_first, can_fix_boot_loader () with
     | `Never, _
     | `Auto, false -> false
     | `Always, _
@@ -1087,7 +910,7 @@ read the man page virt-resize(1).
         let size = div_roundup64 p.p_part.G.part_size sectsize in
         (* Start of next partition + alignment. *)
         let end_ = start +^ size in
-        let next = roundup64 end_ alignment in
+        let next = roundup64 end_ cmdline.alignment in
 
         if verbose () then
           printf "target partition %d: ignore or copy: start=%Ld end=%Ld\n%!"
@@ -1101,7 +924,7 @@ read the man page virt-resize(1).
         let size = div_roundup64 newsize sectsize in
         (* Start of next partition + alignment. *)
         let next = start +^ size in
-        let next = roundup64 next alignment in
+        let next = roundup64 next cmdline.alignment in
 
         if verbose () then
           printf "target partition %d: resize: newsize=%Ld start=%Ld end=%Ld\n%!"
@@ -1113,7 +936,7 @@ read the man page virt-resize(1).
 
     | [] ->
       (* Create the surplus partition if there is room for it. *)
-      if extra_partition && surplus >= min_extra_partition then (
+      if cmdline.extra_partition && surplus >= min_extra_partition then (
         [ {
           (* Since this partition has no source, this data is
            * meaningless and not used since the operation is
@@ -1141,7 +964,7 @@ read the man page virt-resize(1).
      *)
     let start =
       if align_first_partition_and_fix_bootloader then
-        alignment
+        cmdline.alignment
       else
         (* Preserve the existing start, but convert to sectors. *)
         (List.hd partitions).p_part.G.part_start /^ sectsize in
@@ -1203,7 +1026,8 @@ read the man page virt-resize(1).
 
         (match p.p_type with
          | ContentUnknown | ContentPV _ | ContentFS _ ->
-           g#copy_device_to_device ~size:copysize ~sparse source target
+           g#copy_device_to_device ~size:copysize ~sparse:cmdline.sparse
+                                   source target
 
          | ContentExtendedPartition ->
            (* You can't just copy an extended partition by name, eg.
@@ -1288,9 +1112,12 @@ read the man page virt-resize(1).
 
       let g = open_guestfs () in
       (* The output disk is being created, so use cache=unsafe here. *)
-      g#add_drive ?format:output_format ~readonly:false ~cachemode:"unsafe"
-        outfile;
-      if not (quiet ()) then Progress.set_up_progress_bar ~machine_readable g;
+      g#add_drive ?format:cmdline.output_format
+                  ~readonly:false ~cachemode:"unsafe"
+                  cmdline.outfile;
+      if not (quiet ()) then
+        Progress.set_up_progress_bar
+          ~machine_readable:cmdline.machine_readable g;
       g#launch ();
 
       g (* Return new handle. *)
@@ -1310,7 +1137,7 @@ read the man page virt-resize(1).
       function
       | PVResize -> g#pvresize target
       | Resize2fs -> g#resize2fs target
-      | NTFSResize -> g#ntfsresize ~force:ntfsresize_force target
+      | NTFSResize -> g#ntfsresize ~force:cmdline.ntfsresize_force target
       | BtrfsFilesystemResize -> with_mounted target g#btrfs_filesystem_resize
       | XFSGrowFS -> with_mounted target g#xfs_growfs
     in
@@ -1364,7 +1191,7 @@ read the man page virt-resize(1).
    * and therefore bypasses the host cache).  In general you should not
    * use cache=none.
    *)
-  Fsync.file outfile;
+  Fsync.file cmdline.outfile;
 
   if not (quiet ()) then (
     print_newline ();

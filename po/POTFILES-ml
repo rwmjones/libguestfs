@@ -49,6 +49,7 @@ mllib/planner.ml
 mllib/progress.ml
 mllib/regedit.ml
 mllib/uRI.ml
+resize/cmdline.ml
 resize/resize.ml
 sparsify/cmdline.ml
 sparsify/copying.ml

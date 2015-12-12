@@ -24,9 +24,11 @@ EXTRA_DIST = \
 
 CLEANFILES = *~ *.annot *.cmi *.cmo *.cmx *.cmxa *.o virt-resize
 
-SOURCES_MLI =
+SOURCES_MLI = \
+	cmdline.mli
 
 SOURCES_ML = \
+	cmdline.ml \
 	resize.ml
 
 SOURCES_C = \
