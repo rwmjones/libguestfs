@@ -174,10 +174,8 @@ let main () =
     g
   in
 
-  let g =
-    message (f_"Examining %s") cmdline.infile;
-    let g = connect_both_disks () in
-    g in
+  message (f_"Examining %s") cmdline.infile;
+  let g = connect_both_disks () in
 
   (* Get the size in bytes of each disk.
    *
