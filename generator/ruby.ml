@@ -121,21 +121,35 @@ and generate_ruby_c actions () =
 
 ";
 
+  (* Precompute PODs. *)
+  let pod_of_longdesc f =
+    let ret, args, optargs = f.style in
+    let doc = replace_str f.longdesc "C<guestfs_" "C<g." in
+    let doc =
+      if optargs <> [] then
+        doc ^ "\n\nOptional arguments are supplied in the final hash parameter, which is a hash of the argument name to its value.  Pass an empty {} for no optional arguments."
+      else doc in
+    let doc =
+      if f.protocol_limit_warning then
+        doc ^ "\n\n" ^ protocol_limit_warning
+      else doc in
+    doc
+  in
+  List.iter (
+    fun f ->
+      if is_documented f then (
+        let doc = pod_of_longdesc f in
+        pod2text_precompute ~width:60 f.name doc
+      )
+  ) (actions |> external_functions |> sort);
+
   List.iter (
     fun f ->
       let ret, args, optargs = f.style in
 
       (* Generate rdoc. *)
       if is_documented f then (
-        let doc = replace_str f.longdesc "C<guestfs_" "C<g." in
-        let doc =
-          if optargs <> [] then
-            doc ^ "\n\nOptional arguments are supplied in the final hash parameter, which is a hash of the argument name to its value.  Pass an empty {} for no optional arguments."
-          else doc in
-        let doc =
-          if f.protocol_limit_warning then
-            doc ^ "\n\n" ^ protocol_limit_warning
-          else doc in
+        let doc = pod_of_longdesc f in
         let doc = pod2text ~width:60 f.name doc in
         let doc = String.concat "\n * " doc in
         let doc = trim doc in

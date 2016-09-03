@@ -1036,6 +1036,12 @@ and generate_fish_prep_options_c () =
       pr "\n";
   ) prepopts;
 
+  (* Precompute PODs. *)
+  List.iter (
+    fun (_, _, _, longdesc) ->
+      pod2text_precompute ~discard:true ~trim:true "NAME" longdesc
+  ) prepopts;
+
   pr "const struct prep preps[] = {\n";
   List.iter (
     fun (name, shortdesc, args, longdesc) ->
