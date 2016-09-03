@@ -116,19 +116,26 @@ val c_quote : string -> string
 (** Perform quoting on a string so it is safe to include in a C source file. *)
 
 val pod2text : ?width:int -> ?trim:bool -> ?discard:bool -> string -> string -> string list
-  (** [pod2text ?width ?trim ?discard name longdesc] converts the POD in
-      [longdesc] to plain ASCII lines of text.
+(** [pod2text ?width ?trim ?discard name longdesc] converts the POD in
+    [longdesc] to plain ASCII lines of text.
 
-      [width] is the width in characters.  If not specified, then
-      use the pod2text default.
+    [width] is the width in characters.  If not specified, then
+    use the pod2text default.
 
-      [trim] means trim the left margin (useful when including the
-      output inside comments, as in Java generator).
+    [trim] means trim the left margin (useful when including the
+    output inside comments, as in Java generator).
 
-      [discard] means discard the first heading.
+    [discard] means discard the first heading.
 
-      This is the slowest part of autogeneration, so the results are
-      memoized into a temporary file. *)
+    Call {!pod2text_precompute} first for greatest efficiency.
+ *)
+
+val pod2text_precompute : ?width:int -> ?trim:bool -> ?discard:bool -> string -> string -> unit
+(** [pod2text_precompute ?width ?trim ?discard name longdesc]
+    precomputes and memoizes pod2text results, so that a
+    subsequent call to [pod2text] with the same parameters
+    will be much faster (and the program will also run much
+    faster overall). *)
 
 val action_compare : Types.action -> Types.action -> int
   (** Compare the names of two actions, for sorting. *)
