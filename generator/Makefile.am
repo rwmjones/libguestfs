@@ -43,6 +43,8 @@ sources = \
 	events.mli \
 	fish.ml \
 	fish.mli \
+	future.ml \
+	future.mli \
 	gobject.ml \
 	gobject.mli \
 	golang.ml \
@@ -86,6 +88,7 @@ sources = \
 objects = \
 	$(OCAML_GENERATOR_BYTES_COMPAT_CMO) \
 	types.cmo \
+	future.cmo \
 	utils.cmo \
 	actions.cmo \
 	structs.cmo \
