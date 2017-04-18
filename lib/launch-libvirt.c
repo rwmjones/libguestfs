@@ -1686,12 +1686,12 @@ construct_libvirt_xml_disk_address (guestfs_h *g, xmlTextWriterPtr xo,
      * virtio-scsi driver, this is the ".id" field).  This is a number
      * in the range 0-255.
      */
-    attribute_format ("target", "%zu", drv_index);
+    attribute ("target", "0");
 
     /* libvirt "unit" == qemu "lun".  This is the SCSI logical unit
      * number, which is a number in the range 0..16383.
      */
-    attribute ("unit", "0");
+    attribute_format ("unit", "%zu", drv_index);
   } end_element ();
 
   return 0;
@@ -2254,10 +2254,11 @@ selinux_warning (guestfs_h *g, const char *func,
 static int
 max_disks_libvirt (guestfs_h *g, void *datav)
 {
-  /* target is in the range 0-255, but one target is reserved for the
-   * appliance.
+  /* LUN is in the range 0-16383, but one LUN is reserved for the
+   * appliance.  However libvirt fails (RHBZ#1443066) unless we limit
+   * this to something smaller.
    */
-  return 255;
+  return 8192;
 }
 
 static xmlChar *construct_libvirt_xml_hot_add_disk (guestfs_h *g, const struct backend_libvirt_data *data, struct drive *drv, size_t drv_index);
