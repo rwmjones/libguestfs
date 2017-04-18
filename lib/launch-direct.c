@@ -262,7 +262,8 @@ add_drive_standard_params (guestfs_h *g, struct backend_direct_data *data,
 
 static int
 add_drive (guestfs_h *g, struct backend_direct_data *data,
-           struct qemuopts *qopts, size_t i, struct drive *drv)
+           struct qemuopts *qopts, size_t i, struct drive *drv,
+           int for_config_file)
 {
   /* If there's an explicit 'iface', use it.  Otherwise default to
    * virtio-scsi.
@@ -298,8 +299,14 @@ add_drive (guestfs_h *g, struct backend_direct_data *data,
       append_list ("if=none");
     } end_list ();
     start_list ("-device") {
-      append_list ("scsi-hd");
+      if (for_config_file)
+        append_list ("driver=scsi-hd");
+      else
+        append_list ("scsi-hd");
       append_list_format ("drive=hd%zu", i);
+      append_list ("channel=0");
+      append_list ("scsi-id=0");
+      append_list_format ("lun=%zu", i);
     } end_list ();
   }
 
@@ -318,12 +325,53 @@ add_drives (guestfs_h *g, struct backend_direct_data *data,
   size_t i;
   struct drive *drv;
 
-  ITER_DRIVES (g, i, drv) {
-    if (add_drive (g, data, qopts, i, drv) == -1)
+  /* If the number of drives is larger than about 10,000 then we
+   * exceed the maximum length of a command line which Linux supports.
+   * To avoid this, if we have more than 100 drives then write the
+   * drives to a config file and read it back using ‘-readconfig’.
+   */
+  if (g->nr_drives <= 100) {
+    ITER_DRIVES (g, i, drv) {
+      if (add_drive (g, data, qopts, i, drv, 0) == -1)
+        return -1;
+    }
+  }
+  else {
+    struct qemuopts *qopts_drives;
+    CLEANUP_FREE char *config_file = NULL;
+
+    /* Create a new qemuopts handle for the config file. */
+    qopts_drives = qemuopts_create ();
+    if (qopts_drives == NULL) goto qemuopts_error;
+
+    ITER_DRIVES (g, i, drv) {
+      if (add_drive (g, data, qopts_drives, i, drv, 1) == -1) {
+        qemuopts_free (qopts_drives);
+        return -1;
+      }
+    }
+
+    /* Write the config file to a temporary file. */
+    config_file = safe_asprintf (g, "%s/drives%d.conf", g->tmpdir, ++g->unique);
+    if (qemuopts_to_config_file (qopts_drives, config_file) == -1) {
+      perrorf (g, "qemuopts_to_config_file: %s", config_file);
+      qemuopts_free (qopts_drives);
       return -1;
+    }
+    if (g->verbose) {
+      fprintf (stderr, "%s:\n", config_file);
+      qemuopts_to_config_channel (qopts_drives, stderr);
+    }
+    qemuopts_free (qopts_drives);
+
+    arg ("-readconfig", config_file);
   }
 
   return 0;
+
+ qemuopts_error:
+  perrorf (g, "qemuopts");
+  return -1;
 }
 
 static int
@@ -966,7 +1014,16 @@ get_pid_direct (guestfs_h *g, void *datav)
 static int
 max_disks_direct (guestfs_h *g, void *datav)
 {
-  return 255;
+  /* Target (scsi-id) is in the range 0-255, and LUN is in the range
+   * 0-16383.  However qemu cannot handle above about 10000 disks
+   * because it uses a linked list of block devices and has to scan it
+   * every time there is an interrupt.  Therefore we artificially
+   * limit this to the same as for the libvirt backend.
+   *
+   * Note that the appliance drive is placed (by qemu, implicitly) on
+   * scsi-id=1, unit=0.
+   */
+  return 8192;
 }
 
 static struct backend_ops backend_direct_ops = {
