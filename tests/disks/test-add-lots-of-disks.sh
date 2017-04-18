@@ -17,7 +17,7 @@
 
 set -e
 
-N=255
+N=1024
 
 $TEST_FUNCTIONS
 skip_if_skipped
