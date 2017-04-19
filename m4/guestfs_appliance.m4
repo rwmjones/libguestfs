@@ -34,7 +34,7 @@ then you have to --disable-appliance as well, since the appliance contains
 the daemon inside it.])
 fi
 
-dnl Check for supermin >= 5.1.0.
+dnl Check for supermin >= 5.1.18.
 AC_PATH_PROG([SUPERMIN],[supermin],[no])
 
 dnl Pass supermin --packager-config option.

@@ -847,6 +847,9 @@ extern char *guestfs_int_appliance_command_line (guestfs_h *g, const char *appli
 /* appliance-uefi.c */
 extern int guestfs_int_get_uefi (guestfs_h *g, char **code, char **vars, int *flags);
 
+/* appliance-uuid.c */
+extern char *guestfs_int_ext4fs_uuid (guestfs_h *g, const char *filename);
+
 /* launch.c */
 extern int64_t guestfs_int_timeval_diff (const struct timeval *x, const struct timeval *y);
 extern void guestfs_int_launch_send_progress (guestfs_h *g, int perdozen);

@@ -58,9 +58,7 @@
  * located in this file because it's a convenient place for this
  * common code.
  *
- * The C<appliance_dev> parameter must be the full device name of the
- * appliance disk and must have already been adjusted to take into
- * account virtio-blk or virtio-scsi; eg C</dev/sdb>.
+ * The C<appliance_uuid> is the UUID of the appliance filesystem.
  *
  * The C<flags> parameter can contain the following flags logically
  * or'd together (or 0):
@@ -78,7 +76,7 @@
  * be freed by the caller.
  */
 char *
-guestfs_int_appliance_command_line (guestfs_h *g, const char *appliance_dev,
+guestfs_int_appliance_command_line (guestfs_h *g, const char *appliance_uuid,
 				    int flags)
 {
   CLEANUP_FREE_STRINGSBUF DECLARE_STRINGSBUF (argv);
@@ -162,8 +160,8 @@ guestfs_int_appliance_command_line (guestfs_h *g, const char *appliance_dev,
   guestfs_int_add_string (g, &argv, "8250.nr_uarts=1");
 
   /* Tell supermin about the appliance device. */
-  if (appliance_dev)
-    guestfs_int_add_sprintf (g, &argv, "root=%s", appliance_dev);
+  if (appliance_uuid)
+    guestfs_int_add_sprintf (g, &argv, "root=UUID=%s", appliance_uuid);
 
   /* SELinux - deprecated setting, never worked and should not be enabled. */
   if (g->selinux)

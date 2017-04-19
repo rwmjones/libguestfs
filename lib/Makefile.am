@@ -76,6 +76,7 @@ libguestfs_la_SOURCES = \
 	appliance-cpu.c \
 	appliance-kcmdline.c \
 	appliance-uefi.c \
+	appliance-uuid.c \
 	available.c \
 	bindtests.c \
 	canonical-name.c \

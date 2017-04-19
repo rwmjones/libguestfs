@@ -136,7 +136,7 @@ struct libvirt_xml_params {
   char *kernel;                 /* paths to kernel and initrd */
   char *initrd;
   char *appliance_overlay;      /* path to qcow2 overlay backed by appliance */
-  char appliance_dev[64];       /* appliance device name */
+  char *appliance_uuid;         /* appliance volume UUID */
   size_t appliance_index;       /* index of appliance */
   bool enable_svirt;            /* false if we decided to disable sVirt */
   bool current_proc_is_root;    /* true = euid is root */
@@ -303,6 +303,7 @@ launch_libvirt (guestfs_h *g, void *datav, const char *libvirt_uri)
     .kernel = NULL,
     .initrd = NULL,
     .appliance_overlay = NULL,
+    .appliance_uuid = NULL,
   };
   CLEANUP_FREE xmlChar *xml = NULL;
   CLEANUP_FREE char *appliance = NULL;
@@ -582,8 +583,9 @@ launch_libvirt (guestfs_h *g, void *datav, const char *libvirt_uri)
   debug (g, "create libvirt XML");
 
   params.appliance_index = g->nr_drives;
-  strcpy (params.appliance_dev, "/dev/sd");
-  guestfs_int_drive_name (params.appliance_index, &params.appliance_dev[7]);
+  params.appliance_uuid = guestfs_int_ext4fs_uuid (g, appliance);
+  if (!params.appliance_uuid)
+    goto cleanup;
   params.enable_svirt = ! is_custom_hv (g);
 
   xml = construct_libvirt_xml (g, &params);
@@ -690,6 +692,7 @@ launch_libvirt (guestfs_h *g, void *datav, const char *libvirt_uri)
   free (params.kernel);
   free (params.initrd);
   free (params.appliance_overlay);
+  free (params.appliance_uuid);
 
   return 0;
 
@@ -715,6 +718,7 @@ launch_libvirt (guestfs_h *g, void *datav, const char *libvirt_uri)
   free (params.kernel);
   free (params.initrd);
   free (params.appliance_overlay);
+  free (params.appliance_uuid);
 
   g->state = CONFIG;
 
@@ -1202,7 +1206,8 @@ construct_libvirt_xml_boot (guestfs_h *g,
   flags = 0;
   if (!params->data->is_kvm)
     flags |= APPLIANCE_COMMAND_LINE_IS_TCG;
-  cmdline = guestfs_int_appliance_command_line (g, params->appliance_dev, flags);
+  cmdline = guestfs_int_appliance_command_line (g, params->appliance_uuid,
+                                                flags);
 
   start_element ("os") {
     start_element ("type") {
@@ -1743,6 +1748,10 @@ construct_libvirt_xml_appliance (guestfs_h *g,
                                  const struct libvirt_xml_params *params,
                                  xmlTextWriterPtr xo)
 {
+  char dev[64] = "sd";
+
+  guestfs_int_drive_name (params->appliance_index, &dev[2]);
+
   start_element ("disk") {
     attribute ("type", "file");
     attribute ("device", "disk");
@@ -1752,7 +1761,7 @@ construct_libvirt_xml_appliance (guestfs_h *g,
     } end_element ();
 
     start_element ("target") {
-      attribute ("dev", &params->appliance_dev[5]);
+      attribute ("dev", dev);
       attribute ("bus", "scsi");
     } end_element ();
 
