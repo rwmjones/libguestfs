@@ -215,8 +215,6 @@ add_drive_standard_params (guestfs_h *g, struct backend_direct_data *data,
                         drv->cachemode ? drv->cachemode : "writeback");
     if (drv->src.format)
       append_list_format ("format=%s", drv->src.format);
-    if (drv->disk_label)
-      append_list_format ("serial=%s", drv->disk_label);
     if (drv->copyonread)
       append_list ("copy-on-read=on");
 
@@ -246,8 +244,6 @@ add_drive_standard_params (guestfs_h *g, struct backend_direct_data *data,
     append_list_format ("file=%s", drv->overlay);
     append_list ("cache=unsafe");
     append_list ("format=qcow2");
-    if (drv->disk_label)
-      append_list_format ("serial=%s", drv->disk_label);
   }
 
   append_list_format ("id=hd%zu", i);

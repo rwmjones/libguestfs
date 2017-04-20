@@ -1581,12 +1581,6 @@ construct_libvirt_xml_disk (guestfs_h *g,
         return -1;
     }
 
-    if (drv->disk_label) {
-      start_element ("serial") {
-        string (drv->disk_label);
-      } end_element ();
-    }
-
     if (construct_libvirt_xml_disk_address (g, xo, drv_index) == -1)
       return -1;
 

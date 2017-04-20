@@ -56,6 +56,41 @@ device_name_translation (const char *device)
   if (errno != ENXIO && errno != ENOENT)
     return NULL;
 
+  /* Is it a disk label?. */
+  if (STRPREFIX (device, "/dev/disk/guestfs/")) {
+    ssize_t i;
+    const char *lp, *partno;
+    CLEANUP_FREE char *label = NULL, *dev = NULL;
+
+    /* Split the label into label and partition number. */
+    lp = device + strlen ("/dev/disk/guestfs/");
+    partno = lp + strcspn (lp, "0123456789");
+    label = strndup (lp, partno - lp);
+    if (label == NULL) {
+      perror ("strndup");
+      return NULL;
+    }
+
+    i = find_disk_label (label);
+    if (i == -1)
+      return NULL;
+
+    /* Construct the final drive name, then append the partition number. */
+    dev = malloc (64);
+    if (dev == NULL) {
+      perror ("malloc");
+      return NULL;
+    }
+    strcpy (dev, "/dev/sd");
+    drive_name (i, dev+7);
+
+    if (asprintf (&ret, "%s%s", dev, partno) == -1) {
+      perror ("asprintf");
+      return NULL;
+    }
+    return ret;
+  }
+
   /* If the name begins with "/dev/sd" then try the alternatives. */
   if (!STRPREFIX (device, "/dev/sd"))
     return NULL;

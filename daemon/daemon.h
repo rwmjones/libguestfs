@@ -114,6 +114,8 @@ extern void sort_strings (char **argv, size_t len);
 extern void free_strings (char **argv);
 extern void free_stringslen (char **argv, size_t len);
 
+extern char *drive_name (size_t index, char *ret);
+
 extern void sort_device_names (char **argv, size_t len);
 extern int compare_device_names (const char *a, const char *b);
 
@@ -265,6 +267,9 @@ extern int swap_set_label (const char *device, const char *label);
 
 /*-- in upload.c --*/
 extern int upload_to_fd (int fd, const char *filename);
+
+/*-- in disk-labels.c --*/
+extern ssize_t find_disk_label (const char *label);
 
 /* ordinary daemon functions use these to indicate errors
  * NB: you don't need to prefix the string with the current command,

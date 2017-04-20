@@ -9611,4 +9611,22 @@ wildcards.
 Please note that this API may fail when used to compress directories
 with large files, such as the resulting squashfs will be over 3GB big." };
 
+  { defaults with
+    name = "internal_set_disk_label"; added = (1, 37, 12);
+    style = RErr, [Int "index"; String (PlainString, "label")], [];
+    visibility = VInternal;
+    shortdesc = "set a disk label";
+    longdesc = "\
+This is the internal call which implements the
+C<guestfs_add_drive> label parameter." };
+
+  { defaults with
+    name = "internal_clear_disk_label"; added = (1, 37, 12);
+    style = RErr, [Int "index"], [];
+    visibility = VInternal;
+    shortdesc = "clear a disk label";
+    longdesc = "\
+This is the internal call which implements the
+C<guestfs_add_drive> label parameter." };
+
 ]

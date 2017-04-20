@@ -56,6 +56,8 @@ int
 guestfs_impl_launch (guestfs_h *g)
 {
   int r;
+  size_t i;
+  struct drive *drv;
 
   /* Configured? */
   if (g->state != CONFIG) {
@@ -112,6 +114,13 @@ guestfs_impl_launch (guestfs_h *g)
   /* Launch the appliance. */
   if (g->backend_ops->launch (g, g->backend_data, g->backend_arg) == -1)
     return -1;
+
+  /* Set the disk labels for any disks which have them. */
+  ITER_DRIVES (g, i, drv) {
+    if (drv->disk_label)
+      if (guestfs_internal_set_disk_label (g, i, drv->disk_label) == -1)
+        return -1;
+  }
 
   return 0;
 }

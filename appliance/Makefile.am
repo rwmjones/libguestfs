@@ -30,7 +30,6 @@
 include $(top_srcdir)/subdir-rules.mk
 
 EXTRA_DIST = \
-	99-guestfs-serial.rules \
 	excludefiles.in \
 	guestfs_lvm_conf.aug \
 	guestfs_shadow.aug \
@@ -51,8 +50,7 @@ superminfs_DATA = \
 	supermin.d/excludefiles \
 	supermin.d/hostfiles \
 	supermin.d/init.tar.gz \
-	supermin.d/packages \
-	supermin.d/udev-rules.tar.gz
+	supermin.d/packages
 
 supermin.d/base.tar.gz supermin.d/packages: stamp-supermin
 stamp-supermin: make.sh packagelist supermin.d/excludefiles
@@ -62,8 +60,7 @@ stamp-supermin: make.sh packagelist supermin.d/excludefiles
 	  supermin.d/daemon.tar.gz \
 	  supermin.d/excludefiles \
 	  supermin.d/hostfiles \
-	  supermin.d/init.tar.gz \
-	  supermin.d/udev-rules.tar.gz
+	  supermin.d/init.tar.gz
 	touch $@
 
 clean-supermin-appliance:
@@ -117,24 +114,6 @@ supermin.d/init.tar.gz: init
 	rm -f $@ $@-t
 	( cd $(srcdir) && tar zcf - init ) > $@-t
 	mv $@-t $@
-
-# We should put this file in /lib/udev/rules.d, but put it in /etc so
-# we don't have to deal with all the UsrMove crap in Fedora.
-supermin.d/udev-rules.tar.gz: 99-guestfs-serial.rules
-	rm -f $@ $@-t
-	rm -rf tmp-u
-	mkdir -p tmp-u/etc/udev/rules.d
-	for f in $^; do ln $$f tmp-u/etc/udev/rules.d/$$(basename $$f); done
-	( cd tmp-u && tar zcf - etc ) > $@-t
-	rm -r tmp-u
-	mv $@-t $@
-
-# If installing the daemon, install the udev rules too.
-
-if INSTALL_DAEMON
-udevrulesdir = /lib/udev/rules.d
-udevrules_DATA = 99-guestfs-serial.rules
-endif
 
 # libguestfs-make-fixed-appliance script and man page.
 

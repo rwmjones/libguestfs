@@ -646,6 +646,23 @@ free_stringslen (char **argv, size_t len)
 }
 
 /**
+ * This turns a drive index (eg. C<27>) into a drive name
+ * (eg. C<"ab">).
+ *
+ * XXX An exact copy of the function found in F<common/utils/utils.c>
+ */
+char *
+drive_name (size_t index, char *ret)
+{
+  if (index >= 26)
+    ret = drive_name (index/26 - 1, ret);
+  index %= 26;
+  *ret++ = 'a' + index;
+  *ret = '\0';
+  return ret;
+}
+
+/**
  * Compare device names (including partition numbers if present).
  *
  * L<https://rwmj.wordpress.com/2011/01/09/how-are-linux-drives-named-beyond-drive-26-devsdz/>

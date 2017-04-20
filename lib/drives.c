@@ -920,6 +920,10 @@ guestfs_impl_add_drive_opts (guestfs_h *g, const char *filename,
   if (guestfs_internal_hot_add_drive (g, drv->disk_label) == -1)
     return -1;
 
+  /* Set the disk label. */
+  if (guestfs_internal_set_disk_label (g, drv_index, drv->disk_label) == -1)
+    return -1;
+
   return 0;
 }
 
@@ -1043,6 +1047,10 @@ guestfs_impl_remove_drive (guestfs_h *g, const char *label)
       error (g, _("the current backend does not support hotplugging drives"));
       return -1;
     }
+
+    /* Remove the disk label. */
+    if (guestfs_internal_clear_disk_label (g, i) == -1)
+      return -1;
 
     if (guestfs_internal_hot_remove_drive_precheck (g, label) == -1)
       return -1;

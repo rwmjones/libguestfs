@@ -78,6 +78,7 @@ guestfsd_SOURCES = \
 	devsparts.c \
 	df.c \
 	dir.c \
+	disk-labels.c \
 	dispatch.c \
 	dmesg.c \
 	dropcaches.c \
