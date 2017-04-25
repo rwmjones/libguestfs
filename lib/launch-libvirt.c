@@ -1581,6 +1581,13 @@ construct_libvirt_xml_disk (guestfs_h *g,
         return -1;
     }
 
+    start_element ("serial") {
+      char serial[64];
+
+      guestfs_int_create_drive_serial (drv_index, serial);
+      string (serial);
+    } end_element ();
+
     if (construct_libvirt_xml_disk_address (g, xo, drv_index) == -1)
       return -1;
 

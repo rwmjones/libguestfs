@@ -856,6 +856,7 @@ extern void guestfs_int_launch_send_progress (guestfs_h *g, int perdozen);
 int guestfs_int_create_socketname (guestfs_h *g, const char *filename, char (*sockname)[UNIX_PATH_MAX]);
 extern void guestfs_int_register_backend (const char *name, const struct backend_ops *);
 extern int guestfs_int_set_backend (guestfs_h *g, const char *method);
+extern void guestfs_int_create_drive_serial (size_t index, char *serial);
 
 /* inspect.c */
 extern void guestfs_int_free_inspect_info (guestfs_h *g);

@@ -202,6 +202,8 @@ add_drive_standard_params (guestfs_h *g, struct backend_direct_data *data,
                            struct qemuopts *qopts,
                            size_t i, struct drive *drv)
 {
+  char serial[64];
+
   if (!drv->overlay) {
     CLEANUP_FREE char *file = NULL;
 
@@ -246,6 +248,8 @@ add_drive_standard_params (guestfs_h *g, struct backend_direct_data *data,
     append_list ("format=qcow2");
   }
 
+  guestfs_int_create_drive_serial (i, serial);
+  append_list_format ("serial=%s", serial);
   append_list_format ("id=hd%zu", i);
 
   return 0;

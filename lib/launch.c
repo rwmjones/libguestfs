@@ -410,6 +410,19 @@ guestfs_int_set_backend (guestfs_h *g, const char *method)
   return 0;
 }
 
+/* Make the per-drive serial number, which is used to ensure that
+ * drives are correctly enumerated inside the appliance.  This is
+ * passed to the appliance via the SCSI serial number.
+ */
+void
+guestfs_int_create_drive_serial (size_t index, char *serial)
+{
+  const char *prefix = "GUESTFS_";
+
+  strcpy (serial, prefix);
+  guestfs_int_drive_name (index, serial + strlen (prefix));
+}
+
 /* This hack is only required to make static linking work.  See:
  * https://stackoverflow.com/questions/1202494/why-doesnt-attribute-constructor-work-in-a-static-library
  */
