@@ -305,8 +305,8 @@ add_drive (guestfs_h *g, struct backend_direct_data *data,
         append_list ("scsi-hd");
       append_list_format ("drive=hd%zu", i);
       append_list ("channel=0");
-      append_list ("scsi-id=0");
-      append_list_format ("lun=%zu", i);
+      append_list_format ("scsi-id=%zu", i / 16384);
+      append_list_format ("lun=%zu",     i % 16384);
     } end_list ();
   }
 
@@ -1015,15 +1015,13 @@ static int
 max_disks_direct (guestfs_h *g, void *datav)
 {
   /* Target (scsi-id) is in the range 0-255, and LUN is in the range
-   * 0-16383.  However qemu cannot handle above about 10000 disks
-   * because it uses a linked list of block devices and has to scan it
-   * every time there is an interrupt.  Therefore we artificially
-   * limit this to the same as for the libvirt backend.
+   * 0-16383.  In theory we could support 254 * 16384 disks here,
+   * but we limit it to something marginally more sensible.
    *
    * Note that the appliance drive is placed (by qemu, implicitly) on
-   * scsi-id=1, unit=0.
+   * the next free scsi-id, unit=0.
    */
-  return 8192;
+  return 65536;
 }
 
 static struct backend_ops backend_direct_ops = {
