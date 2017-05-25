@@ -54,6 +54,14 @@ ifelse(REDHAT,1,
   yajl
   yara
   zfs-fuse
+
+  dnl ocamlrun is needed if we DON'T have the native OCaml compiler.
+  dnl On all major architectures the native OCaml compiler is available,
+  dnl and that creates standalone binaries which do not require any
+  dnl runtime support.
+  ifelse(OCAMLBEST,c,
+    ocaml-runtime
+  )
 )
 
 ifelse(DEBIAN,1,
@@ -102,6 +110,10 @@ dnl iproute has been renamed to iproute2
   xz-utils
   zfs-fuse
   uuid-runtime
+
+  ifelse(OCAMLBEST,c,
+    ocaml-base-nox
+  )
 )
 
 ifelse(ARCHLINUX,1,
@@ -132,6 +144,11 @@ ifelse(ARCHLINUX,1,
   xz
   yajl
   yara
+
+  ifelse(OCAMLBEST,c,
+    dnl Arch should split this into compiler, runtime.
+    ocaml
+  )
 )
 
 ifelse(SUSE,1,
@@ -165,6 +182,10 @@ ifelse(SUSE,1,
   vim
   xz
   yara
+
+  ifelse(OCAMLBEST,c,
+    ocaml-runtime
+  )
 )
 
 ifelse(FRUGALWARE,1,
@@ -191,6 +212,10 @@ ifelse(FRUGALWARE,1,
   xfsprogs-acl
   xfsprogs-attr
   gptfdisk
+
+  ifelse(OCAMLBEST,c,
+    ocaml
+  )
 )
 
 ifelse(MAGEIA,1,
@@ -224,6 +249,9 @@ ifelse(MAGEIA,1,
   vim-minimal
   xz
   yajl
+  ifelse(OCAMLBEST,c,
+    ocaml-compiler
+  )
 )
 
 acl

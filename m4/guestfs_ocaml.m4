@@ -114,7 +114,7 @@ AM_CONDITIONAL([HAVE_OCAML_GETTEXT],
 
 dnl Create the backwards compatibility Bytes module for OCaml < 4.02.
 mkdir -p generator mllib
-rm -f generator/bytes.ml mllib/bytes.ml
+rm -f generator/bytes.ml daemon/bytes.ml mllib/bytes.ml
 AS_IF([test "x$have_Bytes_module" = "xno"],[
     cat > generator/bytes.ml <<EOF
 include String
@@ -122,7 +122,7 @@ let of_string = String.copy
 let to_string = String.copy
 let sub_string = String.sub
 EOF
-    ln -s ../generator/bytes.ml mllib/bytes.ml
+    ln -s ../generator/bytes.ml daemon/bytes.ml mllib/bytes.ml
     OCAML_GENERATOR_BYTES_COMPAT_CMO='$(top_builddir)/generator/bytes.cmo'
     OCAML_BYTES_COMPAT_CMO='$(top_builddir)/mllib/bytes.cmo'
     OCAML_BYTES_COMPAT_ML='$(top_builddir)/mllib/bytes.ml'

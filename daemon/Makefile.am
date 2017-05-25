@@ -38,12 +38,14 @@ BUILT_SOURCES = \
 
 EXTRA_DIST = \
 	$(BUILT_SOURCES) \
-	guestfsd.pod
+	$(SOURCES_MLI) $(SOURCES_ML) $(SOURCES_C) \
+	guestfsd.pod \
+	guestfs-inspection.pod
 
 if INSTALL_DAEMON
-sbin_PROGRAMS = guestfsd
+sbin_PROGRAMS = guestfsd guestfs-inspection
 else
-noinst_PROGRAMS = guestfsd
+noinst_PROGRAMS = guestfsd guestfs-inspection
 endif
 
 guestfsd_SOURCES = \
@@ -216,15 +218,131 @@ guestfsd_CFLAGS = \
 	$(YAJL_CFLAGS) \
 	$(PCRE_CFLAGS)
 
+SOURCES_MLI = \
+	blkid.mli \
+	btrfs.mli \
+	chroot.mli \
+	common_utils.mli \
+	devsparts.mli \
+	inspection_fs.mli \
+	inspection_fs_cd.mli \
+	inspection_fs_unix.mli \
+	inspection_fs_windows.mli \
+	inspection_types.mli \
+	is.mli \
+	ldm.mli \
+	link.mli \
+	listfs.mli \
+	lvm2.mli \
+	md.mli \
+	mount.mli \
+	mountable.mli \
+	parted.mli \
+	realpath.mli \
+	unix_utils.mli \
+	utils.mli
+
+SOURCES_ML = \
+	unix_utils.ml \
+	guestfs_config.ml \
+	common_utils.ml \
+	mountable.ml \
+	chroot.ml \
+	utils.ml \
+	cmdline.ml \
+	blkid.ml \
+	parted.ml \
+	devsparts.ml \
+	ldm.ml \
+	lvm2.ml \
+	md.ml \
+	btrfs.ml \
+	is.ml \
+	link.ml \
+	realpath.ml \
+	listfs.ml \
+	mount.ml \
+	inspection_types.ml \
+	inspection_fs_cd.ml \
+	inspection_fs_unix.ml \
+	inspection_fs_windows.ml \
+	inspection_fs.ml \
+	inspection.ml
+
+SOURCES_C = \
+	unix_utils-c.c
+
+guestfs_inspection_SOURCES = $(SOURCES_C)
+guestfs_inspection_CPPFLAGS = \
+	-I. \
+	-I$(top_builddir) \
+	-I$(shell $(OCAMLC) -where)
+guestfs_inspection_CFLAGS = \
+	$(WARN_CFLAGS) $(WERROR_CFLAGS)
+
+BOBJECTS = \
+	$(SOURCES_ML:.ml=.cmo)
+XOBJECTS = $(BOBJECTS:.cmo=.cmx)
+
+# -I $(top_builddir)/lib/.libs is a hack which forces corresponding -L
+# option to be passed to gcc, so we don't try linking against an
+# installed copy of libguestfs.
+OCAMLPACKAGES = \
+	-package str,unix,hivex
+
+OCAMLCLIBS =
+
+OCAMLFLAGS = $(OCAML_FLAGS) $(OCAML_WARN_ERROR)
+
+if !HAVE_OCAMLOPT
+OBJECTS = $(BOBJECTS)
+else
+OBJECTS = $(XOBJECTS)
+endif
+
+OCAMLLINKFLAGS = $(LINK_CUSTOM_OCAMLC_ONLY)
+
+guestfs_inspection_DEPENDENCIES = $(OBJECTS) $(top_srcdir)/ocaml-link.sh
+guestfs_inspection_LINK = \
+	$(top_srcdir)/ocaml-link.sh -cclib '$(OCAMLCLIBS)' -- \
+	  $(OCAMLFIND) $(BEST) $(OCAMLFLAGS) $(OCAMLPACKAGES) $(OCAMLLINKFLAGS) \
+	  $(OBJECTS) -o $@
+
+# We share common_utils.ml{,i}, guestfs_config.ml and unix_utils*
+# with the mllib directory.
+#
+# For common_utils we have to remove functions which depend on any
+# modules which are not part of the OCaml stdlib.
+common_utils.ml: $(top_srcdir)/mllib/common_utils.ml
+	rm -f $@ $@-t
+	echo '(* This file is generated from mllib/common_utils.ml *)' > $@-t
+	sed -n '/^(\*<stdlib>\*)$$/,/^(\*<\/stdlib>\*)$$/p' $< >> $@-t
+	mv $@-t $@
+common_utils.mli: $(top_srcdir)/mllib/common_utils.mli
+	rm -f $@ $@-t
+	echo '(* This file is generated from mllib/common_utils.mli *)' > $@-t
+	sed -n '/^(\*<stdlib>\*)$$/,/^(\*<\/stdlib>\*)$$/p' $< >> $@-t
+	mv $@-t $@
+guestfs_config.ml: ../mllib/guestfs_config.ml
+	cp $< $@
+unix_utils-c.c: ../mllib/unix_utils-c.c
+	cp $< $@
+unix_utils.ml: ../mllib/unix_utils.ml
+	cp $< $@
+unix_utils.mli: ../mllib/unix_utils.mli
+	cp $< $@
+
 # Manual pages and HTML files for the website.
 if INSTALL_DAEMON
-man_MANS = guestfsd.8
+man_MANS = guestfsd.8 guestfs-inspection.8
 noinst_DATA =
 else
 # It should be noinst_MANS but that doesn't work.
-noinst_DATA = guestfsd.8
+noinst_DATA = guestfsd.8 guestfs-inspection.8
 endif
-noinst_DATA += $(top_builddir)/website/guestfsd.8.html
+noinst_DATA += \
+	$(top_builddir)/website/guestfsd.8.html \
+	$(top_builddir)/website/guestfs-inspection.8.html
 
 guestfsd.8 $(top_builddir)/website/guestfsd.8.html: stamp-guestfsd.pod
 
@@ -237,4 +355,29 @@ stamp-guestfsd.pod: guestfsd.pod
 	  $<
 	touch $@
 
-.PHONY: force
+guestfs-inspection.8 $(top_builddir)/website/guestfs-inspection.8.html: stamp-guestfs-inspection.pod
+
+stamp-guestfs-inspection.pod: guestfs-inspection.pod
+	$(PODWRAPPER) \
+	  --section 8 \
+	  --man guestfs-inspection.8 \
+	  --html $(top_builddir)/website/guestfs-inspection.8.html \
+	  --license GPLv2+ \
+	  $<
+	touch $@
+
+# OCaml dependencies.
+depend: .depend
+
+.depend: $(wildcard $(abs_srcdir)/*.mli) $(wildcard $(abs_srcdir)/*.ml) common_utils.ml common_utils.mli guestfs_config.ml
+	rm -f $@ $@-t
+	$(OCAMLFIND) ocamldep -I ../ocaml -I $(abs_srcdir) -I $(abs_top_builddir)/mllib -I $(abs_top_builddir)/customize $^ | \
+	  $(SED) 's/ *$$//' | \
+	  $(SED) -e :a -e '/ *\\$$/N; s/ *\\\n */ /; ta' | \
+	  $(SED) -e 's,$(abs_srcdir)/,$(builddir)/,g' | \
+	  sort > $@-t
+	mv $@-t $@
+
+-include .depend
+
+.PHONY: depend docs

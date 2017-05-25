@@ -1,0 +1,88 @@
+=head1 NAME
+
+guestfs-inspection - guestfs inspection program
+
+=head1 SYNOPSIS
+
+ guestfs-inspection
+
+=head1 NOTE
+
+This man page documents the guestfs inspection program.  Normally
+you would I<never> run this program.
+
+If you want to read about guestfs inspection then this is the wrong
+place.  See L<guestfs(3)/INSPECTION> instead.
+
+To use inspection on an unknown disk image, see L<virt-inspector(1)>.
+
+=head1 DESCRIPTION
+
+C<guestfs-inspection> is a standalone program that performs inspection
+on the local disks, to find out what operating system(s) are
+installed.  It normally runs inside the libguestfs appliance, started
+by L<guestfsd(8)>, when the caller uses the C<guestfs_inspect_os> API
+(see L<guestfs-internals(1)> and L<guestfs(3)/guestfs_inspect_os>).
+You should never need to run this program by hand.
+
+The program looks at all disks attached to the appliance, looking for
+filesystems that might belong to operating systems.  It may mount
+these temporarily to examine them for Linux configuration files,
+Windows Registries, and so on.  It then tries to determine what
+operating system(s) are installed on the disks.  It is able to detect
+many different Linux distributions, Windows, BSD, and others.
+
+The currently mounted root filesystem is ignored, since when running
+under libguestfs, that filesystem is part of the libguestfs appliance
+(this is the main difference compared to programs like C<facter>).
+
+
+
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-?>
+
+=item B<--help>
+
+Display brief help.
+
+=item B<--sysroot> DIRECTORY
+
+The directory (which must already exist) where we will mount up
+filesystems before inspecting them.  The default is F</sysroot>.
+
+=item B<-v>
+
+=item B<--verbose>
+
+Enable verbose messages for debugging.
+
+=back
+
+
+
+
+
+=head1 EXIT STATUS
+
+This program returns 0 if successful, or non-zero if there was an
+error.
+
+=head1 SEE ALSO
+
+L<guestfsd(8)>,
+L<guestfs-hacking(1)>,
+L<guestfs-internals(1)>,
+L<guestfs(3)/INSPECTION>,
+L<http://libguestfs.org/>.
+
+=head1 AUTHOR
+
+Richard W.M. Jones L<http://people.redhat.com/~rjones/>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2009-2017 Red Hat Inc.

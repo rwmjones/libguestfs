@@ -144,6 +144,9 @@ L<virt-customize(1)> command and documentation.
 The daemon that runs inside the libguestfs appliance and carries out
 actions.
 
+Also the separate process that carried out inspection.  See
+L<guestfs(3)/INSPECTION> and L<guestfs-inspection(8)>.
+
 =item F<df>
 
 L<virt-df(1)> command and documentation.
@@ -1159,6 +1162,7 @@ __INTERNAL_DOCUMENTATION__
 L<guestfs(3)>,
 L<guestfs-building(1)>,
 L<guestfs-examples(3)>,
+L<guestfs-inspection(8)>,
 L<guestfs-internals(1)>,
 L<guestfs-performance(1)>,
 L<guestfs-release-notes(1)>,

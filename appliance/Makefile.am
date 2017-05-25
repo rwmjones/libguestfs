@@ -79,7 +79,10 @@ make.sh: make.sh.in $(top_builddir)/config.log $(top_builddir)/config.status
 	cmp -s $@ $@-t || mv $@-t $@
 	rm -f $@-t
 
-PACKAGELIST_CPP_FLAGS = -D$(DISTRO)=1 -DEXTRA_PACKAGES="$(EXTRA_PACKAGES)"
+PACKAGELIST_CPP_FLAGS = \
+	-D$(DISTRO)=1 \
+	-DEXTRA_PACKAGES="$(EXTRA_PACKAGES)" \
+	-DOCAMLBEST="$(OCAMLBEST)"
 
 packagelist: packagelist.in Makefile
 	m4 $(PACKAGELIST_CPP_FLAGS) $< | \
@@ -87,11 +90,16 @@ packagelist: packagelist.in Makefile
 	cmp -s $@ $@-t || mv $@-t $@
 	rm -f $@-t
 
-supermin.d/daemon.tar.gz: ../daemon/guestfsd guestfs_lvm_conf.aug guestfs_shadow.aug
+supermin.d/daemon.tar.gz: \
+		../daemon/guestfsd \
+		../daemon/guestfs-inspection \
+		guestfs_lvm_conf.aug \
+		guestfs_shadow.aug
 	rm -f $@ $@-t
 	rm -rf tmp-d
 	mkdir -p tmp-d$(DAEMON_SUPERMIN_DIR) tmp-d/etc tmp-d/usr/share/guestfs
 	ln ../daemon/guestfsd tmp-d$(DAEMON_SUPERMIN_DIR)/guestfsd
+	ln ../daemon/guestfs-inspection tmp-d$(DAEMON_SUPERMIN_DIR)/guestfs-inspection
 	ln $(srcdir)/guestfs_lvm_conf.aug tmp-d/usr/share/guestfs/guestfs_lvm_conf.aug
 	ln $(srcdir)/guestfs_shadow.aug tmp-d/usr/share/guestfs/guestfs_shadow.aug
 	( cd tmp-d && tar zcf - * ) > $@-t

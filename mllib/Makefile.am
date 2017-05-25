@@ -47,11 +47,11 @@ SOURCES_MLI = \
 SOURCES_ML = \
 	guestfs_config.ml \
 	$(OCAML_BYTES_COMPAT_ML) \
+	unix_utils.ml \
 	libdir.ml \
 	stringMap.ml \
 	common_gettext.ml \
 	getopt.ml \
-	unix_utils.ml \
 	common_utils.ml \
 	progress.ml \
 	URI.ml \
