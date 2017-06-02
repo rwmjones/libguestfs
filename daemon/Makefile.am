@@ -253,6 +253,7 @@ SOURCES_MLI = \
 	chroot.mli \
 	common_utils.mli \
 	sysroot.mli \
+	devsparts.mli \
 	file.mli \
 	mountable.mli \
 	unix_utils.mli \
@@ -268,6 +269,7 @@ SOURCES_ML = \
 	mountable.ml \
 	chroot.ml \
 	blkid.ml \
+	devsparts.ml \
 	file.ml \
 	callbacks.ml \
 	daemon.ml

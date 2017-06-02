@@ -549,6 +549,26 @@ copy_mountable (const mountable_t *mountable)
   CAMLreturn (r);
 }
 
+/* Implement RStringList. */
+static char **
+return_string_list (value retv)
+{
+  CLEANUP_FREE_STRINGSBUF DECLARE_STRINGSBUF (ret);
+  value v;
+
+  while (retv != Val_int (0)) {
+    v = Field (retv, 0);
+    if (add_string (&ret, String_val (v)) == -1)
+      return NULL;
+    retv = Field (retv, 1);
+  }
+
+  if (end_stringsbuf (&ret) == -1)
+    return NULL;
+
+  return take_stringsbuf (&ret); /* caller frees */
+}
+
 ";
 
   List.iter (
@@ -665,12 +685,14 @@ copy_mountable (const mountable_t *mountable)
 
       (match ret with
        | RErr -> assert false
-       | RInt _ -> assert false
+       | RInt _ ->
+          pr "  CAMLreturnT (int, Int_val (retv));\n"
        | RInt64 _ -> assert false
-       | RBool _ -> assert false
+       | RBool _ ->
+          pr "  CAMLreturnT (int, Bool_val (retv));\n"
        | RConstString _ -> assert false
        | RConstOptString _ -> assert false
-       | RString (RPlainString, _) ->
+       | RString ((RPlainString|RDevice), _) ->
           pr "  char *ret = strdup (String_val (retv));\n";
           pr "  if (ret == NULL) {\n";
           pr "    reply_with_perror (\"strdup\");\n";
@@ -678,7 +700,9 @@ copy_mountable (const mountable_t *mountable)
           pr "  }\n";
           pr "  CAMLreturnT (char *, ret); /* caller frees */\n"
        | RString _ -> assert false
-       | RStringList _ -> assert false
+       | RStringList _ ->
+          pr "  char **ret = return_string_list (retv);\n";
+          pr "  CAMLreturnT (char **, ret); /* caller frees */\n"
        | RStruct _ -> assert false
        | RStructList _ -> assert false
        | RHashtable _ -> assert false
