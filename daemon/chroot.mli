@@ -16,24 +16,20 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *)
 
-open Printf
+(** This is a generic module for running functions in a chroot.
+    The function runs in a forked subprocess too so that we can
+    restore the root afterwards.
 
-external get_verbose_flag : unit -> bool =
-  "guestfs_int_daemon_get_verbose_flag" "noalloc"
+    It handles passing the parmeter, forking, running the
+    function and marshalling the result or any exceptions. *)
 
-(* When guestfsd starts up, after initialization but before accepting
- * messages, it calls 'caml_startup' which runs all initialization code
- * in the OCaml modules, including this one.  Therefore this is where
- * we can place OCaml initialization code for the daemon.
- *)
-let () =
-  (* Connect the guestfsd [-v] (verbose) flag into 'verbose ()'
-   * used in OCaml code to print debugging messages.
-   *)
-  if get_verbose_flag () then (
-    Common_utils.set_verbose ();
-    eprintf "OCaml daemon loaded\n%!"
-  );
+type t
 
-  (* Register the callbacks which are used to call OCaml code from C. *)
-  Callbacks.init_callbacks ()
+val create : ?name:string -> string -> t
+(** Create a chroot handle.  [?name] is an optional name used in
+    debugging and error messages.  The string is the chroot
+    directory. *)
+
+val f : t -> ('a -> 'b) -> 'a -> 'b
+(** Run a function in the chroot, returning the result or re-raising
+    any exception thrown. *)

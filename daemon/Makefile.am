@@ -19,6 +19,26 @@ include $(top_srcdir)/subdir-rules.mk
 
 generator_built = \
 	actions.h \
+	caml-stubs.c \
+	dispatch.c \
+	names.c \
+	lvm-tokenization.c \
+	structs-cleanups.c \
+	structs-cleanups.h \
+	stubs-0.c \
+	stubs-1.c \
+	stubs-2.c \
+	stubs-3.c \
+	stubs-4.c \
+	stubs-5.c \
+	stubs-6.c \
+	stubs.h \
+	callbacks.ml \
+	types.ml
+
+BUILT_SOURCES = \
+	actions.h \
+	caml-stubs.c \
 	dispatch.c \
 	names.c \
 	lvm-tokenization.c \
@@ -33,11 +53,8 @@ generator_built = \
 	stubs-6.c \
 	stubs.h
 
-BUILT_SOURCES = \
-	$(generator_built)
-
 EXTRA_DIST = \
-	$(BUILT_SOURCES) \
+	$(generator_built) \
 	$(SOURCES_MLI) $(SOURCES_ML) \
 	guestfsd.pod
 
@@ -60,6 +77,7 @@ guestfsd_SOURCES = \
 	blkid.c \
 	blockdev.c \
 	btrfs.c \
+	caml-stubs.c \
 	cap.c \
 	checksum.c \
 	cleanups.c \
@@ -71,6 +89,7 @@ guestfsd_SOURCES = \
 	copy.c \
 	cpio.c \
 	cpmv.c \
+	daemon-c.c \
 	daemon.h \
 	dd.c \
 	debug.c \
@@ -161,6 +180,7 @@ guestfsd_SOURCES = \
 	swap.c \
 	sync.c \
 	syslinux.c \
+	sysroot-c.c \
 	tar.c \
 	tsk.c \
 	truncate.c \
@@ -229,13 +249,21 @@ guestfsd_CFLAGS = \
 # library and then linked to the daemon.  See
 # https://caml.inria.fr/pub/docs/manual-ocaml/intfc.html
 SOURCES_MLI = \
+	chroot.mli \
 	common_utils.mli \
-	unix_utils.mli
+	sysroot.mli \
+	unix_utils.mli \
+	utils.mli
 
 SOURCES_ML = \
 	guestfs_config.ml \
 	unix_utils.ml \
 	common_utils.ml \
+	types.ml \
+	utils.ml \
+	sysroot.ml \
+	chroot.ml \
+	callbacks.ml \
 	daemon.ml
 
 BOBJECTS = $(SOURCES_ML:.ml=.cmo)

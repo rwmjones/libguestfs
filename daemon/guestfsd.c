@@ -57,6 +57,8 @@
 #include <augeas.h>
 
 #include <caml/callback.h>
+#include <caml/mlvalues.h>
+#include <caml/unixsupport.h>
 
 #include "sockets.h"
 #include "c-ctype.h"
@@ -1273,4 +1275,42 @@ cleanup_free_mountable (mountable_t *mountable)
     free (mountable->device);
     free (mountable->volume);
   }
+}
+
+/* Convert an OCaml exception to a reply_with_error_errno call
+ * as best we can.
+ */
+extern void ocaml_exn_to_reply_with_error (const char *func, value exn);
+
+void
+ocaml_exn_to_reply_with_error (const char *func, value exn)
+{
+  const char *exn_name;
+
+  /* This is not the official way to do this, but I could not get the
+   * official way to work, and this way does work.  See
+   * http://caml.inria.fr/pub/ml-archives/caml-list/2006/05/097f63cfb39a80418f95c70c3c520aa8.en.html
+   * http://caml.inria.fr/pub/ml-archives/caml-list/2009/06/797e2f797f57b8ea2a2c0e431a2df312.en.html
+   */
+  exn_name = String_val (Field (Field (exn, 0), 0));
+  if (verbose)
+    fprintf (stderr, "ocaml_exn: '%s' raised '%s' exception\n",
+             func, exn_name);
+
+  if (STREQ (exn_name, "Unix.Unix_error")) {
+    int errcode = code_of_unix_error (Field (exn, 1));
+    reply_with_perror_errno (errcode, "%s: %s",
+                             String_val (Field (exn, 2)),
+                             String_val (Field (exn, 3)));
+  }
+  else if (STREQ (exn_name, "Failure"))
+    reply_with_error ("%s", String_val (Field (exn, 1)));
+  else if (STREQ (exn_name, "Sys_error"))
+    reply_with_error ("%s", String_val (Field (exn, 1)));
+  else if (STREQ (exn_name, "Invalid_argument"))
+    reply_with_error ("invalid argument: %s",
+                      String_val (Field (exn, 1)));
+  else
+    reply_with_error ("internal error: %s: unknown exception thrown: %s",
+                      func, exn_name);
 }

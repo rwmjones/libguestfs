@@ -156,6 +156,8 @@ Makefile.in
 /customize/virt-customize.1
 /daemon/.depend
 /daemon/actions.h
+/daemon/callbacks.ml
+/daemon/caml-stubs.c
 /daemon/common_utils.ml
 /daemon/common_utils.mli
 /daemon/dispatch.c
@@ -174,6 +176,7 @@ Makefile.in
 /daemon/structs-cleanups.h
 /daemon/stubs-?.c
 /daemon/stubs.h
+/daemon/types.ml
 /daemon/unix_utils-c.c
 /daemon/unix_utils.ml
 /daemon/unix_utils.mli

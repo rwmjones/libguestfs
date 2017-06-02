@@ -16,24 +16,4 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *)
 
-open Printf
-
-external get_verbose_flag : unit -> bool =
-  "guestfs_int_daemon_get_verbose_flag" "noalloc"
-
-(* When guestfsd starts up, after initialization but before accepting
- * messages, it calls 'caml_startup' which runs all initialization code
- * in the OCaml modules, including this one.  Therefore this is where
- * we can place OCaml initialization code for the daemon.
- *)
-let () =
-  (* Connect the guestfsd [-v] (verbose) flag into 'verbose ()'
-   * used in OCaml code to print debugging messages.
-   *)
-  if get_verbose_flag () then (
-    Common_utils.set_verbose ();
-    eprintf "OCaml daemon loaded\n%!"
-  );
-
-  (* Register the callbacks which are used to call OCaml code from C. *)
-  Callbacks.init_callbacks ()
+external sysroot : unit -> string = "guestfs_int_daemon_sysroot"

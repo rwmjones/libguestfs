@@ -133,6 +133,12 @@ Run it from the top source directory using the command
             Daemon.generate_daemon_stubs_h;
   output_to_subset "daemon/stubs-%d.c"
                    Daemon.generate_daemon_stubs;
+  output_to "daemon/caml-stubs.c"
+            Daemon.generate_daemon_caml_stubs;
+  output_to "daemon/callbacks.ml"
+            Daemon.generate_daemon_caml_callbacks_ml;
+  output_to "daemon/types.ml"
+            Daemon.generate_daemon_caml_types_ml;
   output_to "daemon/dispatch.c"
             Daemon.generate_daemon_dispatch;
   output_to "daemon/names.c"

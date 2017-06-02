@@ -471,6 +471,189 @@ let generate_daemon_stubs actions () =
       pr "}\n\n";
   ) (actions |> daemon_functions |> sort)
 
+let generate_daemon_caml_types_ml () =
+  generate_header OCamlStyle GPLv2plus
+
+let generate_daemon_caml_callbacks_ml () =
+  generate_header OCamlStyle GPLv2plus;
+
+  pr "let init_callbacks () =\n";
+  pr "  (* Initialize callbacks to OCaml code. *)\n";
+  List.iter (
+    fun ({ name = name; style = ret, args, optargs } as f) ->
+      let ocaml_function =
+        match f.impl with
+        | OCaml f -> f
+        | C -> assert false in
+
+      pr "  Callback.register %S %s;\n" ocaml_function ocaml_function
+  ) (actions |> impl_ocaml_functions |> sort)
+
+(* Generate stubs for the functions implemented in OCaml.
+ * Basically we implement the do_<name> function here, and
+ * have it call out to OCaml code.
+ *)
+let generate_daemon_caml_stubs () =
+  generate_header CStyle GPLv2plus;
+
+  pr "\
+#include <config.h>
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
+#include <inttypes.h>
+#include <errno.h>
+
+#include <caml/alloc.h>
+#include <caml/callback.h>
+#include <caml/fail.h>
+#include <caml/memory.h>
+#include <caml/mlvalues.h>
+
+#include \"daemon.h\"
+#include \"actions.h\"
+
+/* This is not declared in <daemon.h> because we don't want to
+ * include the OCaml headers (to get 'value') for the whole daemon.
+ */
+extern void ocaml_exn_to_reply_with_error (const char *func, value exn);
+
+";
+
+  List.iter (
+    fun ({ name = name; style = ret, args, optargs } as f) ->
+      let ocaml_function =
+        match f.impl with
+        | OCaml f -> f
+        | C -> assert false in
+
+      pr "/* Wrapper for OCaml function ‘%s’. */\n" ocaml_function;
+
+      let args_do_function = args @ args_of_optargs optargs in
+      let args_do_function =
+        List.filter (function
+                     | String ((FileIn|FileOut), _) -> false | _ -> true)
+                    args_do_function in
+      let style = ret, args_do_function, [] in
+      generate_prototype ~extern:false ~semicolon:false
+                         ~single_line:false ~newline:false
+                         ~in_daemon:true ~prefix:"do_"
+                         name style;
+      pr "\n";
+
+      let add_unit_arg =
+        let args = List.filter
+                     (function
+                      | String ((FileIn|FileOut), _) -> false | _ -> true)
+                 args in
+        args = [] in
+      let nr_args = List.length args_do_function in
+
+      pr "{\n";
+      pr "  static value *cb = NULL;\n";
+      pr "  CAMLparam0 ();\n";
+      pr "  CAMLlocal2 (v, retv);\n";
+      pr "  CAMLlocalN (args, %d);\n"
+         (nr_args + if add_unit_arg then 1 else 0);
+      pr "\n";
+      pr "  if (cb == NULL)\n";
+      pr "    cb = caml_named_value (\"%s\");\n" ocaml_function;
+      pr "\n";
+
+      (* Construct the actual call, but note that we want to pass
+       * the optional arguments first in the list.
+       *)
+      let i = ref 0 in
+      List.iter (
+        fun optarg ->
+          let n = name_of_optargt optarg in
+          let uc_n = String.uppercase_ascii n in
+
+          (* optargs are all passed as [None|Some _] *)
+          pr "  if ((optargs_bitmask & %s_%s_BITMASK) == 0)\n"
+             f.c_optarg_prefix uc_n;
+          pr "    args[%d] = Val_int (0); /* None */\n" !i;
+          pr "  else {\n";
+          pr "    v = ";
+          (match optarg with
+           | OBool _ ->
+              pr "Val_bool (%s)" n;
+           | OInt _ -> assert false
+           | OInt64 _ -> assert false
+           | OString _ -> assert false
+           | OStringList _ -> assert false
+          );
+          pr ";\n";
+          pr "    args[%d] = caml_alloc (1, 0);\n" !i;
+          pr "    Store_field (args[%d], 0, v);\n" !i;
+          pr "  }\n";
+          incr i
+      ) optargs;
+      List.iter (
+        fun arg ->
+          pr "  args[%d] = " !i;
+          (match arg with
+           | Bool n -> pr "Val_bool (%s)" n
+           | Int n -> pr "Val_int (%s)" n
+           | Int64 n -> pr "caml_copy_int64 (%s)" n
+           | String (_, n) -> pr "caml_copy_string (%s)" n
+           | OptString _ -> assert false
+           | StringList _ -> assert false
+           | BufferIn _ -> assert false
+           | Pointer _ -> assert false
+          );
+          pr ";\n";
+          incr i
+      ) args;
+      assert (!i = nr_args);
+
+      (* If there are no non-optional arguments, we add a unit arg. *)
+      if add_unit_arg then
+        pr "  args[%d] = Val_unit;\n" !i;
+
+      pr "  retv = caml_callbackN_exn (*cb, %d, args);\n"
+         (nr_args + if add_unit_arg then 1 else 0);
+      pr "\n";
+      pr "  if (Is_exception_result (retv)) {\n";
+      pr "    retv = Extract_exception (retv);\n";
+      pr "    ocaml_exn_to_reply_with_error (%S, retv);\n" name;
+      (match errcode_of_ret ret with
+       | `CannotReturnError ->
+          pr "    CAMLreturn0;\n"
+       | `ErrorIsMinusOne ->
+          pr "    CAMLreturnT (int, -1);\n"
+       | `ErrorIsNULL ->
+          pr "    CAMLreturnT (void *, NULL);\n"
+      );
+      pr "  }\n";
+      pr "\n";
+
+      (match ret with
+       | RErr -> assert false
+       | RInt _ -> assert false
+       | RInt64 _ -> assert false
+       | RBool _ -> assert false
+       | RConstString _ -> assert false
+       | RConstOptString _ -> assert false
+       | RString _ ->
+          pr "  char *ret = strdup (String_val (retv));\n";
+          pr "  if (ret == NULL) {\n";
+          pr "    reply_with_perror (\"strdup\");\n";
+          pr "    CAMLreturnT (char *, NULL);\n";
+          pr "  }\n";
+          pr "  CAMLreturnT (char *, ret); /* caller frees */\n"
+       | RStringList _ -> assert false
+       | RStruct _ -> assert false
+       | RStructList _ -> assert false
+       | RHashtable _ -> assert false
+       | RBufferOut _ -> assert false
+      );
+      pr "}\n";
+      pr "\n"
+  ) (actions |> impl_ocaml_functions |> sort)
+
 let generate_daemon_dispatch () =
   generate_header CStyle GPLv2plus;
 
