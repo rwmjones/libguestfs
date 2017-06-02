@@ -56,6 +56,8 @@
 
 #include <augeas.h>
 
+#include <caml/callback.h>
+
 #include "sockets.h"
 #include "c-ctype.h"
 #include "ignore-value.h"
@@ -347,6 +349,9 @@ main (int argc, char *argv[])
    * that we'll have to do any waiting here.
    */
   udev_settle ();
+
+  /* Initialize the OCaml stubs. */
+  caml_startup (argv);
 
   /* Send the magic length message which indicates that
    * userspace is up inside the guest.

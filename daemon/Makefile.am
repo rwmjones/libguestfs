@@ -38,6 +38,7 @@ BUILT_SOURCES = \
 
 EXTRA_DIST = \
 	$(BUILT_SOURCES) \
+	$(SOURCES_MLI) $(SOURCES_ML) \
 	guestfsd.pod
 
 if INSTALL_DAEMON
@@ -165,6 +166,7 @@ guestfsd_SOURCES = \
 	truncate.c \
 	umask.c \
 	upload.c \
+	unix_utils-c.c \
 	utimens.c \
 	utsname.c \
 	uuids.c \
@@ -175,9 +177,13 @@ guestfsd_SOURCES = \
 	zero.c \
 	zerofree.c
 
+guestfsd_LDFLAGS = \
+	-L$(shell $(OCAMLC) -where) \
+	-L$(shell $(OCAMLC) -where)/hivex
 guestfsd_LDADD = \
 	../common/errnostring/liberrnostring.la \
 	../common/protocol/libprotocol.la \
+	camldaemon.o \
 	$(ACL_LIBS) \
 	$(CAP_LIBS) \
 	$(YAJL_LIBS) \
@@ -196,9 +202,12 @@ guestfsd_LDADD = \
 	$(PCRE_LIBS) \
 	$(TSK_LIBS) \
 	$(RPC_LIBS) \
-	$(YARA_LIBS)
+	$(YARA_LIBS) \
+	$(OCAML_LIBS)
 
 guestfsd_CPPFLAGS = \
+	-I$(shell $(OCAMLC) -where) \
+	-I$(shell $(OCAMLC) -where)/hivex \
 	-I$(top_srcdir)/gnulib/lib \
 	-I$(top_builddir)/gnulib/lib \
 	-I$(top_srcdir)/lib \
@@ -215,6 +224,78 @@ guestfsd_CFLAGS = \
 	$(SD_JOURNAL_CFLAGS) \
 	$(YAJL_CFLAGS) \
 	$(PCRE_CFLAGS)
+
+# Parts of the daemon are written in OCaml.  These are linked into a
+# library and then linked to the daemon.  See
+# https://caml.inria.fr/pub/docs/manual-ocaml/intfc.html
+SOURCES_MLI = \
+	common_utils.mli \
+	unix_utils.mli
+
+SOURCES_ML = \
+	guestfs_config.ml \
+	unix_utils.ml \
+	common_utils.ml \
+	daemon.ml
+
+BOBJECTS = $(SOURCES_ML:.ml=.cmo)
+XOBJECTS = $(BOBJECTS:.cmo=.cmx)
+
+OCAMLPACKAGES = -package str,unix,hivex
+
+OCAMLFLAGS = $(OCAML_FLAGS) $(OCAML_WARN_FLAGS)
+
+if !HAVE_OCAMLOPT
+OBJECTS = $(BOBJECTS)
+OCAML_LIBS = -lmlhivex -lcamlstr -lunix -lcamlrun -ldl -lm
+else
+OBJECTS = $(XOBJECTS)
+OCAML_LIBS = -lmlhivex -lcamlstr -lunix -lasmrun -ldl -lm
+endif
+
+CLEANFILES += camldaemon.o
+
+camldaemon.o: $(OBJECTS)
+	$(OCAMLFIND) $(BEST) -output-obj -o $@ \
+	    $(OCAMLFLAGS) $(OCAMLPACKAGES) -linkpkg $(OBJECTS)
+
+# We share common_utils.ml{,i}, guestfs_config.ml and unix_utils*
+# with the mllib directory.
+#
+# For common_utils we have to remove functions which depend on any
+# modules which are not part of the OCaml stdlib.
+common_utils.ml: $(top_srcdir)/mllib/common_utils.ml
+	rm -f $@ $@-t
+	echo '(* This file is generated from mllib/common_utils.ml *)' > $@-t
+	sed -n '/^(\*<stdlib>\*)$$/,/^(\*<\/stdlib>\*)$$/p' $< >> $@-t
+	mv $@-t $@
+common_utils.mli: $(top_srcdir)/mllib/common_utils.mli
+	rm -f $@ $@-t
+	echo '(* This file is generated from mllib/common_utils.mli *)' > $@-t
+	sed -n '/^(\*<stdlib>\*)$$/,/^(\*<\/stdlib>\*)$$/p' $< >> $@-t
+	mv $@-t $@
+guestfs_config.ml: ../mllib/guestfs_config.ml
+	cp $< $@
+unix_utils-c.c: ../mllib/unix_utils-c.c
+	cp $< $@
+unix_utils.ml: ../mllib/unix_utils.ml
+	cp $< $@
+unix_utils.mli: ../mllib/unix_utils.mli
+	cp $< $@
+
+# OCaml dependencies.
+depend: .depend
+
+.depend: $(wildcard $(abs_srcdir)/*.mli) $(wildcard $(abs_srcdir)/*.ml) common_utils.ml common_utils.mli guestfs_config.ml unix_utils.ml unix_utils.mli
+	rm -f $@ $@-t
+	$(OCAMLFIND) ocamldep -I ../ocaml -I $(abs_srcdir) -I $(abs_top_builddir)/mllib -I $(abs_top_builddir)/customize $^ | \
+	  $(SED) 's/ *$$//' | \
+	  $(SED) -e :a -e '/ *\\$$/N; s/ *\\\n */ /; ta' | \
+	  $(SED) -e 's,$(abs_srcdir)/,$(builddir)/,g' | \
+	  sort > $@-t
+	mv $@-t $@
+
+-include .depend
 
 # Manual pages and HTML files for the website.
 if INSTALL_DAEMON
@@ -237,4 +318,4 @@ stamp-guestfsd.pod: guestfsd.pod
 	  $<
 	touch $@
 
-.PHONY: force
+.PHONY: depend force

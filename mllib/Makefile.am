@@ -49,9 +49,9 @@ SOURCES_ML = \
 	$(OCAML_BYTES_COMPAT_ML) \
 	libdir.ml \
 	stringMap.ml \
+	unix_utils.ml \
 	common_gettext.ml \
 	getopt.ml \
-	unix_utils.ml \
 	common_utils.ml \
 	progress.ml \
 	URI.ml \
