@@ -520,6 +520,35 @@ let generate_daemon_caml_stubs () =
  */
 extern void ocaml_exn_to_reply_with_error (const char *func, value exn);
 
+/* Implement String (Mountable, _) parameter. */
+static value
+copy_mountable (const mountable_t *mountable)
+{
+  CAMLparam0 ();
+  CAMLlocal4 (r, typev, devicev, volumev);
+
+  switch (mountable->type) {
+  case MOUNTABLE_DEVICE:
+    typev = Val_int (0); /* MountableDevice */
+    break;
+  case MOUNTABLE_PATH:
+    typev = Val_int (1); /* MountablePath */
+    break;
+  case MOUNTABLE_BTRFSVOL:
+    volumev = caml_copy_string (mountable->volume);
+    typev = caml_alloc (1, 0); /* MountableBtrfsVol */
+    Store_field (typev, 0, volumev);
+  }
+
+  devicev = caml_copy_string (mountable->device);
+
+  r = caml_alloc_tuple (2);
+  Store_field (r, 0, typev);
+  Store_field (r, 1, devicev);
+
+  CAMLreturn (r);
+}
+
 ";
 
   List.iter (
@@ -598,7 +627,11 @@ extern void ocaml_exn_to_reply_with_error (const char *func, value exn);
            | Bool n -> pr "Val_bool (%s)" n
            | Int n -> pr "Val_int (%s)" n
            | Int64 n -> pr "caml_copy_int64 (%s)" n
-           | String (_, n) -> pr "caml_copy_string (%s)" n
+           | String ((PlainString|Device|Dev_or_Path), n) ->
+              pr "caml_copy_string (%s)" n
+           | String (Mountable, n) ->
+              pr "copy_mountable (%s)" n
+           | String _ -> assert false
            | OptString _ -> assert false
            | StringList _ -> assert false
            | BufferIn _ -> assert false
@@ -637,13 +670,14 @@ extern void ocaml_exn_to_reply_with_error (const char *func, value exn);
        | RBool _ -> assert false
        | RConstString _ -> assert false
        | RConstOptString _ -> assert false
-       | RString _ ->
+       | RString (RPlainString, _) ->
           pr "  char *ret = strdup (String_val (retv));\n";
           pr "  if (ret == NULL) {\n";
           pr "    reply_with_perror (\"strdup\");\n";
           pr "    CAMLreturnT (char *, NULL);\n";
           pr "  }\n";
           pr "  CAMLreturnT (char *, ret); /* caller frees */\n"
+       | RString _ -> assert false
        | RStringList _ -> assert false
        | RStruct _ -> assert false
        | RStructList _ -> assert false
