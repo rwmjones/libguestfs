@@ -256,6 +256,7 @@ SOURCES_MLI = \
 	sysroot.mli \
 	devsparts.mli \
 	file.mli \
+	filearch.mli \
 	is.mli \
 	link.mli \
 	mount.mli \
@@ -277,6 +278,7 @@ SOURCES_ML = \
 	blkid.ml \
 	devsparts.ml \
 	file.ml \
+	filearch.ml \
 	is.ml \
 	link.ml \
 	mount.ml \

@@ -62,6 +62,7 @@ daemon/blkdiscard.c
 daemon/blkid.c
 daemon/blockdev.c
 daemon/btrfs.c
+daemon/caml-stubs.c
 daemon/cap.c
 daemon/checksum.c
 daemon/cleanups.c
@@ -73,6 +74,7 @@ daemon/compress.c
 daemon/copy.c
 daemon/cpio.c
 daemon/cpmv.c
+daemon/daemon-c.c
 daemon/daemon.h
 daemon/dd.c
 daemon/debug-bmap.c
@@ -163,10 +165,12 @@ daemon/stubs.h
 daemon/swap.c
 daemon/sync.c
 daemon/syslinux.c
+daemon/sysroot-c.c
 daemon/tar.c
 daemon/truncate.c
 daemon/tsk.c
 daemon/umask.c
+daemon/unix_utils-c.c
 daemon/upload.c
 daemon/utimens.c
 daemon/utsname.c
@@ -286,7 +290,6 @@ lib/errors.c
 lib/event-string.c
 lib/events.c
 lib/file.c
-lib/filearch.c
 lib/fuse.c
 lib/guestfs-internal-actions.h
 lib/guestfs-internal-all.h
