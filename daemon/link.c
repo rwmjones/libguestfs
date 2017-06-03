@@ -32,22 +32,6 @@
 
 GUESTFSD_EXT_CMD(str_ln, ln);
 
-char *
-do_readlink (const char *path)
-{
-  char *link;
-
-  CHROOT_IN;
-  link = areadlink (path);
-  CHROOT_OUT;
-  if (link == NULL) {
-    reply_with_perror ("%s", path);
-    return NULL;
-  }
-
-  return link;			/* caller frees */
-}
-
 char **
 do_internal_readlinklist (const char *path, char *const *names)
 {
