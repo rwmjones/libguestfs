@@ -258,6 +258,7 @@ SOURCES_MLI = \
 	file.mli \
 	filearch.mli \
 	is.mli \
+	ldm.mli \
 	link.mli \
 	mount.mli \
 	mountable.mli \
@@ -280,6 +281,7 @@ SOURCES_ML = \
 	file.ml \
 	filearch.ml \
 	is.ml \
+	ldm.ml \
 	link.ml \
 	mount.ml \
 	parted.ml \
