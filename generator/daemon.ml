@@ -685,7 +685,8 @@ return_string_list (value retv)
       pr "\n";
 
       (match ret with
-       | RErr -> assert false
+       | RErr ->
+          pr "  CAMLreturnT (int, 0);\n"
        | RInt _ ->
           pr "  CAMLreturnT (int, Int_val (retv));\n"
        | RInt64 _ -> assert false
