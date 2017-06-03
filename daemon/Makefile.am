@@ -261,6 +261,7 @@ SOURCES_MLI = \
 	mount.mli \
 	mountable.mli \
 	parted.mli \
+	realpath.mli \
 	unix_utils.mli \
 	utils.mli
 
@@ -280,6 +281,7 @@ SOURCES_ML = \
 	link.ml \
 	mount.ml \
 	parted.ml \
+	realpath.ml \
 	callbacks.ml \
 	daemon.ml
 
