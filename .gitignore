@@ -160,6 +160,7 @@ Makefile.in
 /daemon/caml-stubs.c
 /daemon/common_utils.ml
 /daemon/common_utils.mli
+/daemon/daemon_utils_tests
 /daemon/dispatch.c
 /daemon/guestfs_config.ml
 /daemon/guestfsd
