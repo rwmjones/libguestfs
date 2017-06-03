@@ -573,6 +573,7 @@ return_string_list (value retv)
 
   List.iter (
     fun ({ name = name; style = ret, args, optargs } as f) ->
+      let uc_name = String.uppercase_ascii name in
       let ocaml_function =
         match f.impl with
         | OCaml f -> f
@@ -621,8 +622,8 @@ return_string_list (value retv)
           let uc_n = String.uppercase_ascii n in
 
           (* optargs are all passed as [None|Some _] *)
-          pr "  if ((optargs_bitmask & %s_%s_BITMASK) == 0)\n"
-             f.c_optarg_prefix uc_n;
+          pr "  if ((optargs_bitmask & GUESTFS_%s_%s_BITMASK) == 0)\n"
+             uc_name uc_n;
           pr "    args[%d] = Val_int (0); /* None */\n" !i;
           pr "  else {\n";
           pr "    v = ";
@@ -647,7 +648,7 @@ return_string_list (value retv)
            | Bool n -> pr "Val_bool (%s)" n
            | Int n -> pr "Val_int (%s)" n
            | Int64 n -> pr "caml_copy_int64 (%s)" n
-           | String ((PlainString|Device|Dev_or_Path), n) ->
+           | String ((PlainString|Device|Pathname|Dev_or_Path), n) ->
               pr "caml_copy_string (%s)" n
            | String (Mountable, n) ->
               pr "copy_mountable (%s)" n
