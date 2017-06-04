@@ -20,6 +20,9 @@ open Common_utils
 
 open Utils
 
+external available : unit -> bool =
+  "guestfs_int_daemon_optgroup_lvm2_available" "noalloc"
+
 (* All device mapper devices are called /dev/mapper/ldm_vol_*.  XXX We
  * could tighten this up in future if ldmtool had a way to read these
  * names back after they have been created.

@@ -569,6 +569,58 @@ return_string_list (value retv)
   return take_stringsbuf (&ret); /* caller frees */
 }
 
+/* Implement RString (RMountable, _). */
+static char *
+return_string_mountable (value retv)
+{
+  value typev = Field (retv, 0);
+  value devicev = Field (retv, 1);
+  value subvolv;
+  char *ret;
+
+  if (Is_long (typev)) {      /* MountableDevice or MountablePath */
+    ret = strdup (String_val (devicev));
+    if (ret == NULL)
+      reply_with_perror (\"strdup\");
+    return ret;
+  }
+  else {                      /* MountableBtrfsVol of subvol */
+    subvolv = Field (typev, 0);
+    if (asprintf (&ret, \"btrfsvol:%%s/%%s\",
+                        String_val (devicev), String_val (subvolv)) == -1)
+      reply_with_perror (\"asprintf\");
+    return ret;
+  }
+}
+
+/* Implement RHashtable (RMountable, RPlainString, _). */
+static char **
+return_hashtable_mountable_string (value retv)
+{
+  CLEANUP_FREE_STRINGSBUF DECLARE_STRINGSBUF (ret);
+  value v, mv, sv;
+  char *m;
+
+  while (retv != Val_int (0)) {
+    v = Field (retv, 0);        /* (Mountable.t, string) */
+    mv = Field (v, 0);          /* Mountable.t */
+    m = return_string_mountable (mv);
+    if (m == NULL)
+      return NULL;
+    if (add_string (&ret, m) == -1)
+      return NULL;
+    sv = Field (v, 1);          /* string */
+    if (add_string (&ret, String_val (sv)) == -1)
+      return NULL;
+    retv = Field (retv, 1);
+  }
+
+  if (end_stringsbuf (&ret) == -1)
+    return NULL;
+
+  return take_stringsbuf (&ret); /* caller frees */
+}
+
 ";
 
   (* Implement code for returning structs and struct lists. *)
@@ -805,7 +857,9 @@ return_string_list (value retv)
           pr "    CAMLreturnT (char *, NULL);\n";
           pr "  }\n";
           pr "  CAMLreturnT (char *, ret); /* caller frees */\n"
-       | RString _ -> assert false
+       | RString (RMountable, _) ->
+          pr "  char *ret = return_string_mountable (retv);\n";
+          pr "  CAMLreturnT (char *, ret); /* caller frees */\n"
        | RStringList _ ->
           pr "  char **ret = return_string_list (retv);\n";
           pr "  CAMLreturnT (char **, ret); /* caller frees */\n"
@@ -819,6 +873,9 @@ return_string_list (value retv)
           pr "    return_%s_list (retv);\n" typ;
           pr "  /* caller frees */\n";
           pr "  CAMLreturnT (guestfs_int_%s_list *, ret);\n" typ
+       | RHashtable (RMountable, RPlainString, _) ->
+          pr "  char **ret = return_hashtable_mountable_string (retv);\n";
+          pr "  CAMLreturnT (char **, ret); /* caller frees */\n"
        | RHashtable _ -> assert false
        | RBufferOut _ -> assert false
       );

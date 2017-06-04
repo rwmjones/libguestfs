@@ -22,6 +22,9 @@ open Common_utils
 
 open Utils
 
+external available : unit -> bool =
+  "guestfs_int_daemon_optgroup_lvm2_available" "noalloc"
+
 let lvs_has_S_opt = lazy (
   let out = command "lvm" ["lvs"; "--help"] in
   String.find out "-S" >= 0
