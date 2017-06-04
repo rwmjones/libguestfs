@@ -753,7 +753,7 @@ return_string_list (value retv)
            | Int64 n -> pr "caml_copy_int64 (%s)" n
            | String ((PlainString|Device|Pathname|Dev_or_Path), n) ->
               pr "caml_copy_string (%s)" n
-           | String (Mountable, n) ->
+           | String ((Mountable|Mountable_or_Path), n) ->
               pr "copy_mountable (%s)" n
            | String _ -> assert false
            | OptString _ -> assert false
@@ -792,7 +792,8 @@ return_string_list (value retv)
           pr "  CAMLreturnT (int, 0);\n"
        | RInt _ ->
           pr "  CAMLreturnT (int, Int_val (retv));\n"
-       | RInt64 _ -> assert false
+       | RInt64 _ ->
+          pr "  CAMLreturnT (int, Int64_val (retv));\n"
        | RBool _ ->
           pr "  CAMLreturnT (int, Bool_val (retv));\n"
        | RConstString _ -> assert false

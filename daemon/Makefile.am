@@ -251,6 +251,7 @@ guestfsd_CFLAGS = \
 # https://caml.inria.fr/pub/docs/manual-ocaml/intfc.html
 SOURCES_MLI = \
 	blkid.mli \
+	btrfs.mli \
 	chroot.mli \
 	common_utils.mli \
 	sysroot.mli \
@@ -280,6 +281,7 @@ SOURCES_ML = \
 	mountable.ml \
 	chroot.ml \
 	blkid.ml \
+	btrfs.ml \
 	devsparts.ml \
 	file.ml \
 	filearch.ml \
