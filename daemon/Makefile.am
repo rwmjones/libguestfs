@@ -275,6 +275,7 @@ SOURCES_ML = \
 	common_utils.ml \
 	types.ml \
 	utils.ml \
+	structs.ml \
 	sysroot.ml \
 	mountable.ml \
 	chroot.ml \

@@ -175,6 +175,7 @@ Makefile.in
 /daemon/stamp-guestfsd.pod
 /daemon/structs-cleanups.c
 /daemon/structs-cleanups.h
+/daemon/structs.ml
 /daemon/stubs-?.c
 /daemon/stubs.h
 /daemon/types.ml

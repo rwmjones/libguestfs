@@ -20,3 +20,4 @@ val generate_ocaml_c : unit -> unit
 val generate_ocaml_c_errnos : unit -> unit
 val generate_ocaml_ml : unit -> unit
 val generate_ocaml_mli : unit -> unit
+val generate_ocaml_daemon_structs : unit -> unit

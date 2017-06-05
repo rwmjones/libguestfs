@@ -571,6 +571,109 @@ return_string_list (value retv)
 
 ";
 
+  (* Implement code for returning structs and struct lists. *)
+  let emit_return_struct typ =
+    let struc = Structs.lookup_struct typ in
+    pr "/* Implement RStruct (%S, _). */\n" typ;
+    pr "static guestfs_int_%s *\n" typ;
+    pr "return_%s (value retv)\n" typ;
+    pr "{\n";
+    pr "  guestfs_int_%s *ret;\n" typ;
+    pr "  value v;\n";
+    pr "\n";
+    pr "  ret = malloc (sizeof (*ret));\n";
+    pr "  if (ret == NULL) {\n";
+    pr "    reply_with_perror (\"malloc\");\n";
+    pr "    return NULL;\n";
+    pr "  }\n";
+    pr "\n";
+    iteri (
+      fun i ->
+        pr "  v = Field (retv, %d);\n" i;
+        function
+        | n, (FString|FUUID) ->
+           pr "  ret->%s = strdup (String_val (v));\n" n;
+           pr "  if (ret->%s == NULL) return NULL;\n" n
+        | n, FBuffer ->
+           pr "  ret->%s_len = caml_string_length (v);\n" n;
+           pr "  ret->%s = strdup (String_val (v));\n" n;
+           pr "  if (ret->%s == NULL) return NULL;\n" n
+        | n, (FBytes|FInt64|FUInt64) ->
+           pr "  ret->%s = Int64_val (v);\n" n
+        | n, (FInt32|FUInt32) ->
+           pr "  ret->%s = Int32_val (v);\n" n
+        | n, FOptPercent ->
+           pr "  if (v == Val_int (0)) /* None */\n";
+           pr "    ret->%s = -1;\n" n;
+           pr "  else {\n";
+           pr "    v = Field (v, 0);\n";
+           pr "    ret->%s = Double_val (v);\n" n;
+           pr "  }\n"
+        | n, FChar ->
+           pr "  ret->%s = Int_val (v);\n" n
+    ) struc.s_cols;
+    pr "\n";
+    pr "  return ret;\n";
+    pr "}\n";
+    pr "\n"
+
+  and emit_return_struct_list typ =
+    pr "/* Implement RStructList (%S, _). */\n" typ;
+    pr "static guestfs_int_%s_list *\n" typ;
+    pr "return_%s_list (value retv)\n" typ;
+    pr "{\n";
+    pr "  guestfs_int_%s_list *ret;\n" typ;
+    pr "  guestfs_int_%s *r;\n" typ;
+    pr "  size_t i, len;\n";
+    pr "  value v, rv;\n";
+    pr "\n";
+    pr "  /* Count the number of elements in the list. */\n";
+    pr "  rv = retv;\n";
+    pr "  len = 0;\n";
+    pr "  while (rv != Val_int (0)) {\n";
+    pr "    len++;\n";
+    pr "    rv = Field (rv, 1);\n";
+    pr "  }\n";
+    pr "\n";
+    pr "  ret = malloc (sizeof *ret);\n";
+    pr "  if (ret == NULL) {\n";
+    pr "    reply_with_perror (\"malloc\");\n";
+    pr "    return NULL;\n";
+    pr "  }\n";
+    pr "  ret->guestfs_int_%s_list_len = len;\n" typ;
+    pr "  ret->guestfs_int_%s_list_val =\n" typ;
+    pr "    calloc (len, sizeof (guestfs_int_%s));\n" typ;
+    pr "  if (ret->guestfs_int_%s_list_val == NULL) {\n" typ;
+    pr "    reply_with_perror (\"calloc\");\n";
+    pr "    free (ret);\n";
+    pr "    return NULL;\n";
+    pr "  }\n";
+    pr "\n";
+    pr "  rv = retv;\n";
+    pr "  for (i = 0; i < len; ++i) {\n";
+    pr "    v = Field (rv, 0);\n";
+    pr "    r = return_%s (v);\n" typ;
+    pr "    if (r == NULL)\n";
+    pr "      return NULL; /* XXX leaks memory along this error path */\n";
+    pr "    memcpy (&ret->guestfs_int_%s_list_val[i], r, sizeof (*r));\n" typ;
+    pr "    rv = Field (rv, 1);\n";
+    pr "  }\n";
+    pr "\n";
+    pr "  return ret;\n";
+    pr "}\n";
+    pr "\n";
+  in
+
+  List.iter (
+    function
+    | typ, RStructOnly ->
+       emit_return_struct typ
+    | typ, (RStructListOnly | RStructAndList) ->
+       emit_return_struct typ;
+       emit_return_struct_list typ
+  ) (rstructs_used_by (actions |> impl_ocaml_functions));
+
+  (* Implement the wrapper functions. *)
   List.iter (
     fun ({ name = name; style = ret, args, optargs } as f) ->
       let uc_name = String.uppercase_ascii name in
@@ -705,8 +808,16 @@ return_string_list (value retv)
        | RStringList _ ->
           pr "  char **ret = return_string_list (retv);\n";
           pr "  CAMLreturnT (char **, ret); /* caller frees */\n"
-       | RStruct _ -> assert false
-       | RStructList _ -> assert false
+       | RStruct (_, typ) ->
+          pr "  guestfs_int_%s *ret =\n" typ;
+          pr "    return_%s (retv);\n" typ;
+          pr "  /* caller frees */\n";
+          pr "  CAMLreturnT (guestfs_int_%s *, ret);\n" typ
+       | RStructList (_, typ) ->
+          pr "  guestfs_int_%s_list *ret =\n" typ;
+          pr "    return_%s_list (retv);\n" typ;
+          pr "  /* caller frees */\n";
+          pr "  CAMLreturnT (guestfs_int_%s_list *, ret);\n" typ
        | RHashtable _ -> assert false
        | RBufferOut _ -> assert false
       );

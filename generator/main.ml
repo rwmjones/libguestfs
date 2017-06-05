@@ -191,6 +191,8 @@ Run it from the top source directory using the command
             OCaml.generate_ocaml_c;
   output_to "ocaml/guestfs-c-errnos.c"
             OCaml.generate_ocaml_c_errnos;
+  output_to "daemon/structs.ml"
+            OCaml.generate_ocaml_daemon_structs;
   output_to "ocaml/bindtests.ml"
             Bindtests.generate_ocaml_bindtests;
 
