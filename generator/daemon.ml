@@ -972,6 +972,10 @@ let generate_daemon_optgroups_c () =
   generate_header CStyle GPLv2plus;
 
   pr "#include <config.h>\n";
+  pr "#include <stdio.h>\n";
+  pr "#include <stdlib.h>\n";
+  pr "\n";
+  pr "#include <caml/mlvalues.h>\n";
   pr "\n";
   pr "#include \"daemon.h\"\n";
   pr "#include \"optgroups.h\"\n";
@@ -995,7 +999,24 @@ let generate_daemon_optgroups_c () =
         pr "  { \"%s\", optgroup_%s_available },\n" group group
   ) optgroups_names_all;
   pr "  { NULL, NULL }\n";
-  pr "};\n"
+  pr "};\n";
+  pr "\n";
+  pr "/* Wrappers so these functions can be called from OCaml code. */\n";
+  List.iter (
+    fun group ->
+      if not (List.mem group optgroups_retired) then (
+        pr "extern value guestfs_int_daemon_optgroup_%s_available (value);\n"
+           group;
+        pr "\n";
+        pr "/* NB: This is a \"noalloc\" call. */\n";
+        pr "value\n";
+        pr "guestfs_int_daemon_optgroup_%s_available (value unitv)\n" group;
+        pr "{\n";
+        pr "  return Val_bool (optgroup_%s_available ());\n" group;
+        pr "}\n";
+        pr "\n"
+      )
+  ) optgroups_names_all
 
 let generate_daemon_optgroups_h () =
   generate_header CStyle GPLv2plus;
