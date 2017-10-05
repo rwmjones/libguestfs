@@ -686,11 +686,10 @@ development libraries are installed.
 This option forces virt-p2v to be built against Gtk 2, which is
 currently the most widely tested configuration.
 
-=item B<--with-qemu=">bin1 bin2 ...B<">
+=item B<--with-qemu=>/usr/bin/qemu-system-x86_64
 
-Provide an alternate qemu binary (or list of binaries).  This can be
-overridden at runtime by setting the C<LIBGUESTFS_HV> environment
-variable.
+Provide an alternate qemu binary.  This can be overridden at runtime
+by setting the C<LIBGUESTFS_HV> environment variable.
 
 =item B<--with-supermin-packager-config=>I<yum.conf>
 
