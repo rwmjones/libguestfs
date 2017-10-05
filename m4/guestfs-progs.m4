@@ -66,12 +66,8 @@ AM_CONDITIONAL([HAVE_PO4A], [test "x$PO4A" != "xno"])
 dnl Check for db_dump, db_load (optional).
 GUESTFS_FIND_DB_TOOL([DB_DUMP], [dump])
 GUESTFS_FIND_DB_TOOL([DB_LOAD], [load])
-if test "x$DB_DUMP" != "xno"; then
-    AC_DEFINE_UNQUOTED([DB_DUMP],["$DB_DUMP"],[Name of db_dump program.])
-fi
-if test "x$DB_LOAD" != "xno"; then
-    AC_DEFINE_UNQUOTED([DB_LOAD],["$DB_LOAD"],[Name of db_load program.])
-fi
+AC_DEFINE_UNQUOTED([DB_DUMP],["$DB_DUMP"],[Name of db_dump program.])
+AC_DEFINE_UNQUOTED([DB_LOAD],["$DB_LOAD"],[Name of db_load program.])
 
 dnl Check for netpbm programs (optional).
 AC_PATH_PROGS([PBMTEXT],[pbmtext],[no])

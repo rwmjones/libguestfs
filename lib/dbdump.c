@@ -31,8 +31,6 @@
 #include "guestfs.h"
 #include "guestfs-internal.h"
 
-#if defined(DB_DUMP)
-
 static void read_db_dump_line (guestfs_h *g, void *datav, const char *line, size_t len);
 static unsigned char *convert_hex_to_binary (guestfs_h *g, const char *hex, size_t hexlen, size_t *binlen_rtn);
 
@@ -75,6 +73,13 @@ guestfs_int_read_db_dump (guestfs_h *g,
 
   if (r == -1)
     return -1;
+  if (WIFEXITED (r) && WEXITSTATUS (r) == 127) {
+    /* Allow the command to be missing at runtime so that packagers can
+     * use weak dependencies.  In this case it's not an error, we
+     * return an empty list.
+     */
+    return 0;
+  }
   if (!WIFEXITED (r) || WEXITSTATUS (r) != 0) {
     guestfs_int_external_command_failed (g, r, DB_DUMP, NULL);
     return -1;
@@ -225,5 +230,3 @@ convert_hex_to_binary (guestfs_h *g, const char *hex, size_t hexlen,
   *binlen_rtn = binlen;
   return bin;
 }
-
-#endif /* defined(DB_DUMP) */

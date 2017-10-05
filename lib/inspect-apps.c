@@ -45,9 +45,7 @@
 #include "guestfs-internal-actions.h"
 #include "structs-cleanups.h"
 
-#ifdef DB_DUMP
 static struct guestfs_application2_list *list_applications_rpm (guestfs_h *g, const char *root);
-#endif
 static struct guestfs_application2_list *list_applications_deb (guestfs_h *g, const char *root);
 static struct guestfs_application2_list *list_applications_pacman (guestfs_h *g, const char *root);
 static struct guestfs_application2_list *list_applications_apk (guestfs_h *g, const char *root);
@@ -121,11 +119,9 @@ guestfs_impl_inspect_list_applications2 (guestfs_h *g, const char *root)
 
   if (STREQ (type, "linux") || STREQ (type, "hurd")) {
     if (STREQ (package_format, "rpm")) {
-#ifdef DB_DUMP
       ret = list_applications_rpm (g, root);
       if (ret == NULL)
         return NULL;
-#endif
     }
     else if (STREQ (package_format, "deb")) {
       ret = list_applications_deb (g, root);
@@ -162,8 +158,6 @@ guestfs_impl_inspect_list_applications2 (guestfs_h *g, const char *root)
 
   return ret;
 }
-
-#ifdef DB_DUMP
 
 /* This data comes from the Name database, and contains the application
  * names and the first 4 bytes of each link field.
@@ -408,8 +402,6 @@ list_applications_rpm (guestfs_h *g, const char *root)
 
   return NULL;
 }
-
-#endif /* defined DB_DUMP */
 
 static struct guestfs_application2_list *
 list_applications_deb (guestfs_h *g, const char *root)
