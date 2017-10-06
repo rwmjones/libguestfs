@@ -33,3 +33,6 @@ val datadir : string
 
 val host_cpu : string
 (** The configure value [@host_cpu@] *)
+
+val qemu_img : string
+(** The configure value [@QEMU_IMG@] *)

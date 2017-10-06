@@ -314,7 +314,7 @@ disk_create_qcow2 (guestfs_h *g, const char *orig_filename, int64_t size,
   }
 
   /* Assemble the qemu-img command line. */
-  guestfs_int_cmd_add_arg (cmd, "qemu-img");
+  guestfs_int_cmd_add_arg (cmd, QEMU_IMG);
   guestfs_int_cmd_add_arg (cmd, "create");
   guestfs_int_cmd_add_arg (cmd, "-f");
   guestfs_int_cmd_add_arg (cmd, "qcow2");
@@ -347,7 +347,7 @@ disk_create_qcow2 (guestfs_h *g, const char *orig_filename, int64_t size,
 
   r = guestfs_int_cmd_run (cmd);
   if (!WIFEXITED (r) || WEXITSTATUS (r) != 0) {
-    guestfs_int_external_command_failed (g, r, "qemu-img", orig_filename);
+    guestfs_int_external_command_failed (g, r, QEMU_IMG, orig_filename);
     return -1;
   }
 

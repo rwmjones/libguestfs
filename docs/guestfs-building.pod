@@ -716,6 +716,12 @@ binary to find the version of Python, the location of Python libraries
 and so on.  See
 L</BUILDING PYTHON 2 AND PYTHON 3 BINDINGS> below.
 
+=item B<QEMU_IMG>
+
+This environment variable may be set to point to the full path of the
+L<qemu-img(1)> program, in case it is on a nonstandard path or has a
+nonstandard name.
+
 =item B<SUPERMIN>
 
 This environment variable can be set to choose an alternative

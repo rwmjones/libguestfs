@@ -128,7 +128,8 @@ object
                            dcPath parsed_uri scheme server orig_path in
 
       (* Rebase the qcow2 overlay to adjust the readahead parameter. *)
-      let cmd = [ "qemu-img"; "rebase"; "-u"; "-b"; backing_qemu_uri;
+      let cmd = [ Guestfs_config.qemu_img; "rebase"; "-u";
+                  "-b"; backing_qemu_uri;
                   overlay.ov_overlay_file ] in
       if run_command cmd <> 0 then
         warning (f_"qemu-img rebase failed (ignored)")

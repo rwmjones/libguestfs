@@ -35,7 +35,7 @@
  *
  * I<Either> add arguments:
  *
- *  guestfs_int_cmd_add_arg (cmd, "qemu-img");
+ *  guestfs_int_cmd_add_arg (cmd, QEMU_IMG);
  *  guestfs_int_cmd_add_arg (cmd, "info");
  *  guestfs_int_cmd_add_arg (cmd, filename);
  *
@@ -48,7 +48,7 @@
  * shell commands, with the added safety of allowing args to be quoted
  * properly).
  *
- *  guestfs_int_cmd_add_string_unquoted (cmd, "qemu-img info ");
+ *  guestfs_int_cmd_add_string_unquoted (cmd, "file info ");
  *  guestfs_int_cmd_add_string_quoted (cmd, filename);
  *
  * =item 4.

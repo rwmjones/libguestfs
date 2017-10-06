@@ -100,3 +100,7 @@ working.
     esac
     AC_DEFINE_UNQUOTED([QEMU],["$QEMU"],[Location of qemu binary.])
 ])
+
+dnl qemu-img (required).
+AC_PATH_PROGS([QEMU_IMG],[qemu-img],[no])
+AC_DEFINE_UNQUOTED([QEMU_IMG],["$QEMU_IMG"],[Path to qemu-img program])

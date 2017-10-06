@@ -191,7 +191,7 @@ get_json_output (guestfs_h *g, const char *filename)
   snprintf (fdpath, sizeof fdpath, "/dev/fd/%d", fd);
   guestfs_int_cmd_clear_close_files (cmd);
 
-  guestfs_int_cmd_add_arg (cmd, "qemu-img");
+  guestfs_int_cmd_add_arg (cmd, QEMU_IMG);
   guestfs_int_cmd_add_arg (cmd, "info");
   guestfs_int_cmd_add_arg (cmd, "--output");
   guestfs_int_cmd_add_arg (cmd, "json");
