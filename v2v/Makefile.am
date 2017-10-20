@@ -28,6 +28,8 @@ EXTRA_DIST = \
 	$(SOURCES_MLI) $(SOURCES_ML) $(SOURCES_C) \
 	copy_to_local.ml \
 	copy_to_local.mli \
+	v2v_slow_unit_tests.ml \
+	v2v-slow-unit-tests.sh \
 	v2v_unit_tests.ml \
 	virt-v2v.pod \
 	virt-v2v-copy-to-local.pod
@@ -312,7 +314,9 @@ TESTS += \
 endif
 
 if HAVE_OCAML_PKG_OUNIT
-TESTS += v2v_unit_tests
+TESTS += \
+	v2v_unit_tests \
+	v2v-slow-unit-tests.sh
 endif
 
 if ENABLE_APPLIANCE
@@ -366,6 +370,10 @@ check-valgrind:
 SLOW_TESTS = \
 	$(real_guests_scripts) \
 	test-v2v-trim.sh
+
+if HAVE_OCAML_PKG_OUNIT
+SLOW_TESTS += v2v-slow-unit-tests.sh
+endif
 
 check-slow:
 	$(MAKE) check TESTS="$(SLOW_TESTS)" SLOW=1
@@ -490,7 +498,9 @@ EXTRA_DIST += \
 # Unit tests.
 check_PROGRAMS =
 if HAVE_OCAML_PKG_OUNIT
-check_PROGRAMS += v2v_unit_tests
+check_PROGRAMS += \
+	v2v_unit_tests \
+	v2v_slow_unit_tests
 endif
 
 v2v_unit_tests_BOBJECTS = \
@@ -534,6 +544,49 @@ v2v_unit_tests_LINK = \
 	  $(OCAMLPACKAGES) -package oUnit \
 	  $(OCAMLLINKFLAGS) \
 	  $(v2v_unit_tests_THEOBJECTS) -o $@
+
+v2v_slow_unit_tests_BOBJECTS = \
+	types.cmo \
+	uefi.cmo \
+	utils.cmo \
+	DOM.cmo \
+	create_ovf.cmo \
+	windows.cmo \
+	windows_virtio.cmo \
+	linux.cmo \
+	parse_vmx.cmo \
+	inspect_source.cmo \
+	v2v_slow_unit_tests.cmo
+v2v_slow_unit_tests_XOBJECTS = $(v2v_slow_unit_tests_BOBJECTS:.cmo=.cmx)
+
+v2v_slow_unit_tests_SOURCES = $(virt_v2v_SOURCES)
+v2v_slow_unit_tests_CPPFLAGS = $(virt_v2v_CPPFLAGS)
+v2v_slow_unit_tests_CFLAGS = $(virt_v2v_CFLAGS)
+
+if !HAVE_OCAMLOPT
+# Can't call this v2v_slow_unit_tests_OBJECTS because automake gets confused.
+v2v_slow_unit_tests_THEOBJECTS = $(v2v_slow_unit_tests_BOBJECTS)
+v2v_slow_unit_tests.cmo: OCAMLPACKAGES += -package oUnit
+else
+v2v_slow_unit_tests_THEOBJECTS = $(v2v_slow_unit_tests_XOBJECTS)
+v2v_slow_unit_tests.cmx: OCAMLPACKAGES += -package oUnit
+endif
+
+v2v_slow_unit_tests_DEPENDENCIES = \
+	$(v2v_slow_unit_tests_THEOBJECTS) \
+	../common/mlstdutils/mlstdutils.$(MLARCHIVE) \
+	../common/mlxml/mlxml.$(MLARCHIVE) \
+	../common/mlgettext/mlgettext.$(MLARCHIVE) \
+	../common/mlpcre/mlpcre.$(MLARCHIVE) \
+	../common/mlutils/mlcutils.$(MLARCHIVE) \
+	../common/mltools/mltools.$(MLARCHIVE) \
+	$(top_srcdir)/ocaml-link.sh
+v2v_slow_unit_tests_LINK = \
+	$(top_srcdir)/ocaml-link.sh -cclib '$(OCAMLCLIBS)' -- \
+	  $(OCAMLFIND) $(BEST) $(OCAMLFLAGS) \
+	  $(OCAMLPACKAGES) -package oUnit \
+	  $(OCAMLLINKFLAGS) \
+	  $(v2v_slow_unit_tests_THEOBJECTS) -o $@
 
 # Dependencies.
 .depend: *.mli *.ml
