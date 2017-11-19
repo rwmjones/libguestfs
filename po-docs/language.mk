@@ -139,6 +139,8 @@ virt-customize.1: virt-customize.pod customize-synopsis.pod customize-options.po
 	  --insert $(srcdir)/customize-options.pod:__CUSTOMIZE_OPTIONS__ \
 	  $<
 
+if !HAVE_OCAML
+
 virt-sysprep.1: virt-sysprep.pod sysprep-extra-options.pod sysprep-operations.pod
 	$(PODWRAPPER) \
 	  --no-strict-checks \
@@ -147,6 +149,8 @@ virt-sysprep.1: virt-sysprep.pod sysprep-extra-options.pod sysprep-operations.po
           --insert $(srcdir)/sysprep-extra-options.pod:__EXTRA_OPTIONS__ \
           --insert $(srcdir)/sysprep-operations.pod:__OPERATIONS__ \
 	  $<
+
+endif
 
 %.1: %.pod
 	$(PODWRAPPER) \
