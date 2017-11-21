@@ -81,6 +81,8 @@ sources = \
 	haskell.mli \
 	java.ml \
 	java.mli \
+	live_protocol.ml \
+	live_protocol.mli \
 	lua.ml \
 	lua.mli \
 	main.ml \
@@ -165,6 +167,7 @@ objects = \
 	errnostring.cmo \
 	customize.cmo \
 	UEFI.cmo \
+	live_protocol.cmo \
 	main.cmo
 
 EXTRA_DIST = $(sources) files-generated.txt

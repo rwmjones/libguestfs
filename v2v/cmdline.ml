@@ -94,6 +94,7 @@ let parse_cmdline () =
     | "disk" | "local" -> input_mode := `Disk
     | "libvirt" -> input_mode := `Libvirt
     | "libvirtxml" -> input_mode := `LibvirtXML
+    | "live" -> input_mode := `Live
     | "ova" -> input_mode := `OVA
     | "vmx" -> input_mode := `VMX
     | s ->
@@ -375,6 +376,12 @@ read the man page virt-v2v(1).
         | _ ->
           error (f_"expecting a libvirt XML file name on the command line") in
       Input_libvirtxml.input_libvirtxml filename
+
+    | `Live ->
+      (* -i live: Expecting no extra parameters. *)
+       if args <> [] then
+         error (f_"unexpected command line parameter after -i live");
+       Input_live.input_live ()
 
     | `OVA ->
       (* -i ova: Expecting an ova filename (tar file). *)

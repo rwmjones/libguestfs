@@ -370,6 +370,11 @@ Makefile.in
 /libguestfs.spec
 /libguestfs-*.tar.gz
 /libtool
+/live/live-conversion-client
+/live/live-protocol-extra.h
+/live/live_protocol.c
+/live/live_protocol.h
+/live/live_protocol.x
 /local*
 /ltmain.sh
 /lua/bindtests.lua
@@ -650,6 +655,12 @@ Makefile.in
 /utils/qemu-boot/qemu-boot
 /utils/qemu-speed-test/qemu-speed-test
 /v2v/.depend
+/v2v/live-protocol-wrapper-c.c
+/v2v/live_protocol_wrapper.ml
+/v2v/live_protocol_wrapper.mli
+/v2v/live_protocol.c
+/v2v/live_protocol.h
+/v2v/live_protocol.x
 /v2v/oUnit-*
 /v2v/real-*.d/
 /v2v/real-*.img

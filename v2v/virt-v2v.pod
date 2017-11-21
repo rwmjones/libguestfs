@@ -34,10 +34,11 @@ libguestfs E<ge> 1.28.
 
 =head1 INPUT AND OUTPUT MODES
 
-                          ┌────────────┐  ┌─────────▶ -o null
- -i disk ────────────┐    │            │ ─┘┌───────▶ -o local
- -i ova  ──────────┐ └──▶ │ virt-v2v   │ ──┘┌───────▶ -o qemu
-                   └────▶ │ conversion │ ───┘┌────────────┐
+                          ┌────────────┐
+ -i live ───────────┐     │            │  ┌─────────▶ -o null
+ -i disk ─────────┐ └───▶ │            │ ─┘┌────────▶ -o local
+ -i ova  ───────┐ └─────▶ │ virt-v2v   │ ──┘┌───────▶ -o qemu
+                └───────▶ │ conversion │ ───┘┌────────────┐
  VMware─▶┌────────────┐   │ server     │ ────▶ -o libvirt │─▶ KVM
  Xen ───▶│ -i libvirt ──▶ │            │     │  (default) │
  ... ───▶│  (default) │   │            │ ──┐ └────────────┘
@@ -60,6 +61,9 @@ option selects the precise libvirt source.
 
 I<-i libvirtxml> is used to read from libvirt XML files.  This is the
 method used by L<virt-p2v(1)> behind the scenes.
+
+I<-i live> is used for live conversions, in conjunction with the live
+conversion client running on the source.
 
 I<-i ova> is used for reading from a VMware ova source file.
 
@@ -181,8 +185,8 @@ Citrix Xen has not been recently tested.
 
 =item Hyper-V
 
-Not recently tested.  Requires that you export the disk or use
-L<virt-p2v(1)> on Hyper-V.
+Not recently tested.  Requires that you export the disk, or use
+L<virt-p2v(1)>, or use live conversion.
 
 =item Direct from disk images
 
@@ -191,7 +195,7 @@ container formats supported by qemu.
 
 =item Physical machines
 
-Using the L<virt-p2v(1)> tool.
+Using the L<virt-p2v(1)> tool or live conversion client.
 
 =back
 
@@ -325,6 +329,14 @@ In this mode you have to pass a libvirt XML file on the command line.
 This file is read in order to get metadata about the source guest
 (such as its name, amount of memory), and also to locate the input
 disks.  See L</MINIMAL XML FOR -i libvirtxml OPTION> below.
+
+=item B<-i> B<live>
+
+Set the input method to I<live>.
+
+Virt-v2v will print a token.  You must start the live conversion
+client on the source machine and enter the IP address or hostname of
+the conversion server, and the token.  See L</LIVE CONVERSION> below.
 
 =item B<-i> B<local>
 
@@ -1679,6 +1691,74 @@ server to store a full copy of the guest.
  virt-v2v-copy-to-local -ic xen+ssh://root@xen.example.com guest
  virt-v2v -i libvirtxml guest.xml -o local -os /var/tmp
  rm guest.xml guest-disk*
+
+=head1 LIVE CONVERSION
+
+Virt-v2v supports live conversions, where the source machine stays
+running during most of the conversion process.  There is a short
+(usually a few minutes) cut-over during which the machine being
+converted is unavailable, but this downtime is usually far shorter
+than normal offline conversions.
+
+=head2 LIVE: HOW IT WORKS
+
+There are two machines involved in live conversions.  The conversion
+server runs S<C<virt-v2v -i live [...]>>.  The source physical or
+virtual machine runs the I<live conversion client>.  Note the live
+conversion client is installed inside the machine that is being
+converted, B<not> on the source hypervisor.
+
+Virt-v2v listens on a TCP port and prints a short random token.  On
+the live conversion client the operator must enter the IP address or
+hostname of the conversion server (the machine running virt-v2v) and
+the token.  (The token has three purposes: It authenticates the source
+machine to virt-v2v.  It tells the live conversion client which TCP
+port number to use.  And it prevents unintentional mix ups where you
+might connect the wrong source machine to the wrong virt-v2v
+instance.)
+
+The live conversion client connects to virt-v2v and authenticates with
+the token.  It then transfers a copy of the source machine's disk(s).
+The source machine can continue running as normal during this time.
+If a part of the disk which has already been sent is written to, then
+the live conversion client detects this and re-sends it.
+
+  source physical
+  or virtual
+  machine being                     conversion
+  converted                         server
+ ┌──────────────┐                  ┌────────────────────┐
+ │ live         │                  │ $ virt-v2v -i live │
+ │ conversion   │  TCP connection  │ Token: IJKL-1234   │
+ │ client   ───────────────────────▶                    │
+ └──────────────┘                  └────────────────────┘
+            ⇡                          ┊
+            └┄┄┄┄┄┄←┄┄┄┄┄←┄┄┄┄┄←┄┄┄┄┄┄┄┘
+              operator must copy token
+                 in this direction
+
+After nearly all of the blocks of the source disks have been copied,
+the live conversion client shuts down the source machine into "single
+user mode", sends any remaining disk blocks over, and sends over some
+metadata about the source, and finally shuts the source machine down
+completely.
+
+On the conversion server, virt-v2v performs conversion on the disk
+image (also installing virtio drivers if possible).  At this point the
+converted and/or virtualized (for P2V) guest can be moved to the
+target hypervisor and started.  For
+L<in-place conversions|IN PLACE CONVERSION> the final copy can
+usually be avoided.
+
+
+
+
+
+
+
+
+
+
 
 =head1 OUTPUT TO LIBVIRT
 

@@ -255,6 +255,11 @@ L<virt-inspector(1)>, the virtual machine image inspector.
 
 Source code to the C library.
 
+=item F<live>
+
+The live conversion client, used to perform live V2V or P2V
+conversions.
+
 =item F<logo>
 
 Logo used on the website.  The fish is called Arthur by the way.

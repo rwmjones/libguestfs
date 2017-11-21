@@ -337,6 +337,19 @@ Run it from the top source directory using the command
   output_to "v2v/uefi.mli"
             UEFI.generate_uefi_mli;
 
+  output_to "v2v/live_protocol_wrapper.mli"
+            Live_protocol.generate_live_protocol_wrapper_mli;
+  output_to "v2v/live_protocol_wrapper.ml"
+            Live_protocol.generate_live_protocol_wrapper_ml;
+  output_to "v2v/live-protocol-wrapper-c.c"
+            Live_protocol.generate_live_protocol_wrapper_c;
+  output_to "v2v/live_protocol.x"
+            Live_protocol.generate_live_protocol_x;
+  output_to "live/live_protocol.x"
+            Live_protocol.generate_live_protocol_x;
+  output_to "live/live-protocol-extra.h"
+            Live_protocol.generate_live_protocol_extra_h;
+
   output_to "customize/customize_cmdline.mli"
             Customize.generate_customize_cmdline_mli;
   output_to "customize/customize_cmdline.ml"

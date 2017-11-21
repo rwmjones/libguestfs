@@ -273,6 +273,7 @@ AC_CONFIG_FILES([Makefile
                  java/examples/Makefile
                  lib/Makefile
                  lib/libguestfs.pc
+                 live/Makefile
                  lua/Makefile
                  lua/examples/Makefile
                  make-fs/Makefile

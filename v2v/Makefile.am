@@ -18,16 +18,23 @@
 include $(top_srcdir)/subdir-rules.mk
 
 generator_built = \
+	live-protocol-wrapper-c.c \
+	live_protocol_wrapper.ml \
+	live_protocol_wrapper.mli \
 	uefi.ml \
 	uefi.mli
 
 BUILT_SOURCES = \
-	$(generator_built)
+	$(generator_built) \
+	live_protocol.c \
+	live_protocol.h
 
 EXTRA_DIST = \
 	$(SOURCES_MLI) $(SOURCES_ML) $(SOURCES_C) \
 	copy_to_local.ml \
 	copy_to_local.mli \
+	live_protocol.c \
+	live_protocol.h \
 	v2v_slow_unit_tests.ml \
 	v2v-slow-unit-tests.sh \
 	v2v_unit_tests.ml \
@@ -49,6 +56,7 @@ SOURCES_MLI = \
 	input_libvirt_vddk.mli \
 	input_libvirt_xen_ssh.mli \
 	input_libvirtxml.mli \
+	input_live.mli \
 	input_ova.mli \
 	input_vmx.mli \
 	inspect_source.mli \
@@ -56,6 +64,8 @@ SOURCES_MLI = \
 	linux.mli \
 	linux_bootloaders.mli \
 	linux_kernels.mli \
+	live.mli \
+	live_protocol_wrapper.mli \
 	modules_list.mli \
 	name_from_disk.mli \
 	output_glance.mli \
@@ -98,6 +108,8 @@ SOURCES_ML = \
 	parse_libvirt_xml.ml \
 	create_libvirt_xml.ml \
 	qemuopts.ml \
+	live_protocol_wrapper.ml \
+	live.ml \
 	input_libvirtxml.ml \
 	input_libvirt_other.ml \
 	input_libvirt_vcenter_https.ml \
@@ -106,6 +118,7 @@ SOURCES_ML = \
 	input_libvirt.ml \
 	input_ova.ml \
 	input_vmx.ml \
+	input_live.ml \
 	linux_bootloaders.ml \
 	linux_kernels.ml \
 	convert_linux.ml \
@@ -124,7 +137,33 @@ SOURCES_ML = \
 
 SOURCES_C = \
 	libvirt_utils-c.c \
+	live-protocol-wrapper-c.c \
 	qemuopts-c.c
+
+noinst_LTLIBRARIES = libliveprotocol.la
+
+# Because rpcgen generates archaic code, we cannot use ordinary
+# warnings here.
+libliveprotocol_la_SOURCES = live_protocol.c  live_protocol.h
+libliveprotocol_la_CFLAGS = \
+	-Wall -Wno-unused -fno-strict-aliasing $(GCC_VISIBILITY_HIDDEN) \
+	$(RPC_CFLAGS)
+
+if HAVE_RPCGEN
+
+live_protocol.c: live_protocol.x
+	rm -f $@-t $@-t2
+	$(RPCGEN) -c -o $@-t $<
+	$(SED) 's,\.\./\(\.\./\)*lib,.,' < $@-t > $@-t2
+	rm $@-t
+	mv $@-t2 $@
+
+live_protocol.h: live_protocol.x
+	rm -f $@-t
+	$(RPCGEN) -h -o $@-t $<
+	mv $@-t $@
+
+endif
 
 if HAVE_OCAML
 
@@ -137,7 +176,8 @@ virt_v2v_CPPFLAGS = \
 	-I$(shell $(OCAMLC) -where) \
 	-I$(top_srcdir)/common/qemuopts \
 	-I$(top_srcdir)/common/utils \
-	-I$(top_srcdir)/lib
+	-I$(top_srcdir)/lib \
+	-I$(top_srcdir)/gnulib/lib
 virt_v2v_CFLAGS = \
 	$(WARN_CFLAGS) $(WERROR_CFLAGS) \
 	$(LIBVIRT_CFLAGS)
@@ -170,6 +210,7 @@ OCAMLPACKAGES += -package gettext-stub
 endif
 
 OCAMLCLIBS = \
+	-L$(builddir)/.libs -lliveprotocol \
 	-lutils \
 	-lqemuopts \
 	$(LIBVIRT_LIBS) \
