@@ -74,9 +74,9 @@
     (argv)[(i)++] = (v);                                                \
   } while (0)
 
-#ifndef SOCK_CLOEXEC
-#define SOCK_CLOEXEC 0
-#endif
+//#ifndef SOCK_CLOEXEC
+//#define SOCK_CLOEXEC 0
+//#endif
 
 #ifndef MAX
 #define MAX(a,b) ((a)>(b)?(a):(b))
