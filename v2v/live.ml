@@ -97,17 +97,15 @@ let rec negotiate ({ closed; listening_sock } as t) token =
 
 (* Perform the header exchange and negotiation phases of the protocol. *)
 and do_negotiation sock token =
-  let xdr = xdr_of_socket sock in
-
   (* The phases of the protocol. *)
-  do_header_exchange xdr token;
-  do_option_negotiation xdr;
+  do_header_exchange sock token;
+  do_option_negotiation sock;
   (* XXX *)
   ()
 
 (* Header Exchange Phase *)
-and do_header_exchange xdr token =
-  let header = xdr_get_header xdr in
+and do_header_exchange sock token =
+  let header = xdr_get_header sock in
 
   let header_reply = {
     magic = header_magic;
@@ -119,18 +117,18 @@ and do_header_exchange xdr token =
 
   if header.magic <> header_magic then (
     let header_reply = { header_reply with error = ERR_INVALID_MAGIC } in
-    xdr_put_header_reply xdr header_reply;
+    xdr_put_header_reply sock header_reply;
     failwith (s_"invalid magic string in header")
   );
   if header.ver <> header_version then (
     let header_reply = { header_reply with error = ERR_UNKNOWN_VERSION } in
-    xdr_put_header_reply xdr header_reply;
+    xdr_put_header_reply sock header_reply;
     failwithf (f_"unknown protocol version %ld: this server can only handle protocol version %ld")
               header.ver header_version
   );
   if header.token <> String.sub token 0 token_length then (
     let header_reply = { header_reply with error = ERR_INVALID_TOKEN } in
-    xdr_put_header_reply xdr header_reply;
+    xdr_put_header_reply sock header_reply;
     failwith (s_"invalid token from client")
   );
 
@@ -138,17 +136,17 @@ and do_header_exchange xdr token =
   if header.client_features_must <> 0L then (
     let header_reply = { header_reply with
                          error = ERR_UNKNOWN_CLIENT_FEATURE } in
-    xdr_put_header_reply xdr header_reply;
+    xdr_put_header_reply sock header_reply;
     failwithf (f_"unknown client feature 0x%Lx that the server is required to understand")
               header.client_features_must
   );
   (* Ignore the optional header.client_features for now. *)
 
   (* Send the acknowledgement packet. *)
-  xdr_put_header_reply xdr header_reply
+  xdr_put_header_reply sock header_reply
 
 (* Option Negotiation Phase. *)
-and do_option_negotiation xdr =
+and do_option_negotiation sock =
 
   (* XXX *)
   ()

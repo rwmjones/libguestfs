@@ -38,10 +38,9 @@
 #include "live.h"
 
 static int sock;
-static XDR xdr;
 
-static int read_data (void *unused, void *buf, int count);
-static int write_data (void *unused, void *buf, int count);
+static void send_xdr (xdrproc_t proc, void *v);
+static void recv_xdr (xdrproc_t proc, void *v);
 
 /**
  * Perform live conversion to the named conversion server.
@@ -127,12 +126,6 @@ do_live_conversion (const char *server, const char *full_token)
   if (verbose)
     printf ("connected to %s:%s\n", server, port_str);
 
-  /* glibc rpc and libtirpc use different prototypes for the read and
-   * write functions.  Casting them to void* prevents warnings.
-   */
-  xdrrec_create (&xdr, 0, 0, NULL, (void *) read_data, (void *) write_data);
-  xdrrec_skiprecord (&xdr);
-
   /* Header Exchange Phase. */
   memcpy (header.magic, HEADER_MAGIC, sizeof header.magic);
   header.ver = HEADER_VERSION;
@@ -140,20 +133,10 @@ do_live_conversion (const char *server, const char *full_token)
   header.client_features = 0;
   header.client_features_must = 0;
 
-  xdr.x_op = XDR_ENCODE;
-  if (!xdr_header (&xdr, &header) || !xdrrec_endofrecord (&xdr, 1)) {
-    fprintf (stderr, _("%s: failed to send header\n"),
-             getprogname ());
-    exit (EXIT_FAILURE);
-  }
+  send_xdr ((xdrproc_t) xdr_header, &header);
 
   /* Read the reply. */
-  xdr.x_op = XDR_DECODE;
-  if (!xdr_header_reply (&xdr, &header_reply)) {
-    fprintf (stderr, _("%s: failed to read header reply\n"),
-             getprogname ());
-    exit (EXIT_FAILURE);
-  }
+  recv_xdr ((xdrproc_t) xdr_header_reply, &header_reply);
   if (memcmp (header_reply.magic, HEADER_MAGIC, strlen (HEADER_MAGIC)) != 0) {
     fprintf (stderr, _("%s: invalid magic string in header reply\n"),
              getprogname ());
@@ -191,37 +174,76 @@ do_live_conversion (const char *server, const char *full_token)
   /* Option Negotiation Phase. */
 
 
-  xdr_destroy (&xdr);
+
   close (sock);
 }
 
-static int
-read_data (void *unused, void *buf, int count)
-{
-  size_t len = (size_t) count, r;
+/* XXX Threads. */
+static char buf[MAX_MESSAGE];
 
-  errno = 0;
-  r = full_read (sock, buf, len);
-  if (r < len) {
-    if (errno == 0)
-      /* This is the EOF case, but if it happens any time we are
-       * reading a message then it's an error.  Also the xdrrec
-       * layer just keeps reading in a loop forever if you return
-       * 0 here.
-       */
-      errno = EILSEQ;
-    return -1;
+static void
+send_xdr (xdrproc_t proc, void *v)
+{
+  XDR xdr;
+  uint32_t len;
+  char lenbuf[4];
+  int r;
+
+  xdrmem_create (&xdr, buf, sizeof buf, XDR_ENCODE);
+  r = proc (&xdr, (char *) v);
+  len = xdr_getpos (&xdr);
+  xdr_destroy (&xdr);
+  if (!r) {
+    fprintf (stderr, _("%s: could not encode data structure\n"),
+             getprogname ());
+    exit (EXIT_FAILURE);
   }
-  return r;
+
+  xdrmem_create (&xdr, lenbuf, sizeof lenbuf, XDR_ENCODE);
+  xdr_u_int (&xdr, &len);
+  xdr_destroy (&xdr);
+
+  if (full_write (sock, lenbuf, sizeof lenbuf) != sizeof lenbuf ||
+      full_write (sock, buf, len) != len) {
+    fprintf (stderr, _("%s: write: %m\n"),
+             getprogname ());
+    exit (EXIT_FAILURE);
+  }
 }
 
-static int
-write_data (void *unused, void *buf, int count)
+static void
+recv_xdr (xdrproc_t proc, void *v)
 {
-  size_t len = (size_t) count, r;
+  XDR xdr;
+  uint32_t len;
+  int r;
 
-  r = full_write (sock, buf, len);
-  if (r < len)
-    return -1; /* error */
-  return r;
+  if (full_read (sock, buf, 4) != 4) {
+  read_error:
+    if (errno == 0)
+      fprintf (stderr, _("%s: unexpected end of input\n"),
+               getprogname ());
+    else
+      fprintf (stderr, _("%s: read: %m\n"),
+               getprogname ());
+    exit (EXIT_FAILURE);
+  }
+  xdrmem_create (&xdr, buf, 4, XDR_DECODE);
+  xdr_u_int (&xdr, &len);
+  xdr_destroy (&xdr);
+  if (len > sizeof buf) {
+    fprintf (stderr, _("%s: invalid length or oversided struct\n"),
+             getprogname ());
+    exit (EXIT_FAILURE);
+  }
+  if (full_read (sock, buf, len) != len)
+    goto read_error;
+  xdrmem_create (&xdr, buf, len, XDR_DECODE);
+  r = proc (&xdr, (char *) v);
+  xdr_destroy (&xdr);
+  if (!r) {
+    fprintf (stderr, _("%s: failed to decode the structure\n"),
+             getprogname ());
+    exit (EXIT_FAILURE);
+  }
 }

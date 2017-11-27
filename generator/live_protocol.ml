@@ -37,6 +37,11 @@ let token_length = 6
  *)
 let max_block_size = 65536
 
+(* Maximum message size in the protocol.  This does not include the
+ * oversided data packets which are sent outside the XDR.
+ *)
+let max_message = 4096
+
 type ftype =
   | Byte
   | Char
@@ -136,8 +141,11 @@ let structs = [
   [
     "disk", Int, "Disk index";
     "offset", Int64, "Offset of this block in bytes";
-    "data", VarMaxArray (Byte, max_block_size), "Data (XDR stores size)";
+    "size", Int, "Size of the block in bytes";
     "checksum", VarArray Byte, "Checksum of the block";
+    (* This is followed by the data block which is not encoded
+     * using XDR but will be exactly ‘size’ bytes.
+     *)
   ];
   (* There are no server replies to data blocks, but the server may
    * disconnect if there is some error.
@@ -241,7 +249,10 @@ let generate_live_protocol_extra_h () =
 /* The length of the alphabetic part of the token. */
 #define TOKEN_LENGTH %d
 
-" header_magic header_version token_length;
+/* Maximum message size in the protocol. */
+#define MAX_MESSAGE %d
+
+" header_magic header_version token_length max_message;
 
   pr "/* Server errors as strings. */\n";
   pr "static const char *live_errors[] = {\n";
@@ -308,18 +319,6 @@ val header_version : int32
 val token_length : int
 (** The length of the alphabetic part of the token. *)
 
-type xdr
-(** Analogous to the [XDR*] type in C programs. *)
-
-val xdr_of_socket : Unix.file_descr -> xdr
-(** Convert a file descriptor into a readable and writeable XDR stream
-    object. *)
-
-val xdr_destroy : xdr -> unit
-(** Free an XDR handle.
-
-    NB: This does not close the socket. *)
-
 ";
 
   List.iter (
@@ -348,8 +347,8 @@ val xdr_destroy : xdr -> unit
       pr "}\n";
       pr "(** %s *)\n" comment;
       pr "\n";
-      pr "val xdr_get_%s : xdr -> %s\n" name name;
-      pr "val xdr_put_%s : xdr -> %s -> unit\n" name name;
+      pr "val xdr_get_%s : Unix.file_descr -> %s\n" name name;
+      pr "val xdr_put_%s : Unix.file_descr -> %s -> unit\n" name name;
       pr "(** Receive and send %s message. *)\n" name;
       pr "\n";
   ) structs
@@ -361,10 +360,6 @@ let generate_live_protocol_wrapper_ml () =
 let header_magic = %S
 let header_version = %d_l
 let token_length = %d
-
-type xdr
-external xdr_of_socket : Unix.file_descr -> xdr = \"guestfs_int_live_xdr_of_socket\"
-external xdr_destroy : xdr -> unit = \"guestfs_int_live_xdr_destroy\"
 
 " header_magic header_version token_length;
 
@@ -390,9 +385,9 @@ external xdr_destroy : xdr -> unit = \"guestfs_int_live_xdr_destroy\"
           pr "  %s : %s;\n" fname ftype
       ) fields;
       pr "}\n";
-      pr "external xdr_get_%s : xdr -> %s = \"guestfs_int_live_xdr_get_%s\"\n"
+      pr "external xdr_get_%s : Unix.file_descr -> %s = \"guestfs_int_live_xdr_get_%s\"\n"
          name name name;
-      pr "external xdr_put_%s : xdr -> %s -> unit = \"guestfs_int_live_xdr_put_%s\"\n"
+      pr "external xdr_put_%s : Unix.file_descr -> %s -> unit = \"guestfs_int_live_xdr_put_%s\"\n"
          name name name;
   ) structs
 
@@ -409,9 +404,10 @@ let generate_live_protocol_wrapper_c () =
 
 #include <caml/alloc.h>
 #include <caml/custom.h>
+#include <caml/fail.h>
 #include <caml/memory.h>
 #include <caml/mlvalues.h>
-#include <caml/fail.h>
+#include <caml/unixsupport.h>
 
 #include \"full-read.h\"
 #include \"full-write.h\"
@@ -423,143 +419,51 @@ let generate_live_protocol_wrapper_c () =
  */
 #pragma GCC diagnostic ignored \"-Wmissing-prototypes\"
 
-/* XDR must be first in this struct because we rely on casting it
- * to XDR in several places.
+/* This buffer is used for serializing and deserializing XDR
+ * messages.  If we ever have to worry about threads then we
+ * will need to stop using a global buffer for this. (XXX)
  */
-struct xdr_socket {
-  XDR xdr;
-  int sock;
-  int errnum;   /* Saved errno after read/write errors. */
-};
+static char buf[%d];
 
-/* This wraps an xdr_socket pointer, but most of the time we just
- * treat it as an [XDR*].
- */
-#define Xdrp_val(v) (*((XDR **)Data_custom_val(v)))
-
-static void
-xdrp_finalize (value xdrv)
-{
-  XDR *xdr = Xdrp_val (xdrv);
-
-  if (xdr) {
-    xdr_destroy (xdr);
-    free (xdr);
-  }
-}
-
-static struct custom_operations xdr_custom_operations = {
-  (char *) \"xdr_custom_operations\",
-  xdrp_finalize,
-  custom_compare_default,
-  custom_hash_default,
-  custom_serialize_default,
-  custom_deserialize_default,
-  custom_compare_ext_default,
-};
-
-static int
-read_data (void *xdr_socket_struct, void *buf, int count)
-{
-  struct xdr_socket *xdr_socket = xdr_socket_struct;
-  int sock = xdr_socket->sock;
-  size_t len = (size_t) count, r;
-
-  errno = 0;
-  r = full_read (sock, buf, len);
-  if (r < len) {
-    if (errno == 0)
-      /* This is the EOF case, but if it happens any time we are
-       * reading a message then it's an error.  Also the xdrrec
-       * layer just keeps reading in a loop forever if you return
-       * 0 here.
-       */
-      xdr_socket->errnum = EILSEQ;
-    else
-      xdr_socket->errnum = errno;
-    return -1;
-  }
-  return r;
-}
-
-static int
-write_data (void *xdr_socket_struct, void *buf, int count)
-{
-  struct xdr_socket *xdr_socket = xdr_socket_struct;
-  int sock = xdr_socket->sock;
-  size_t len = (size_t) count, r;
-
-  r = full_write (sock, buf, len);
-  if (r < len) {
-    xdr_socket->errnum = errno;
-    return -1; /* error */
-  }
-  return r;
-}
-
-value
-guestfs_int_live_xdr_of_socket (value sockv)
-{
-  CAMLparam1 (sockv);
-  CAMLlocal1 (xdrv);
-  /* Note that Unix.file_descr is really just an int. */
-  int sock = Int_val (sockv);
-  struct xdr_socket *xdr;
-
-  xdr = malloc (sizeof *xdr);
-  if (xdr == NULL)
-    caml_raise_out_of_memory ();
-  xdr->sock = sock;
-  /* glibc rpc and libtirpc use different prototypes for the read and
-   * write functions.  Casting them to void* prevents warnings.
-   */
-  xdrrec_create ((XDR *) xdr, 0, 0, (void *) xdr,
-                 (void *) read_data, (void *) write_data);
-  xdrrec_skiprecord ((XDR *) xdr);
-
-  xdrv = caml_alloc_custom (&xdr_custom_operations,
-                            sizeof (struct xdr_socket), 0, 1);
-  Xdrp_val (xdrv) = (XDR *) xdr;
-  CAMLreturn (xdrv);
-}
-
-value
-guestfs_int_live_xdr_destroy (value xdrv)
-{
-  CAMLparam1 (xdrv);
-
-  xdrp_finalize (xdrv);
-
-  /* This is so we don't double-free in the finalizer. */
-  Xdrp_val (xdrv) = NULL;
-
-  CAMLreturn (Val_unit);
-}
-
-";
+" max_message;
 
   List.iter (
     fun (name, comment, fields) ->
       pr "\
 value
-guestfs_int_live_xdr_get_%s (value xdrv)
+guestfs_int_live_xdr_get_%s (value sockv)
 {
-  CAMLparam1 (xdrv);
+  CAMLparam1 (sockv);
+  /* Note that Unix.file_descr is really just an int. */
+  int sock = Int_val (sockv);
   CAMLlocal2 (rv, tv);
-  XDR *xdr = Xdrp_val (xdrv);
+  XDR xdr;
+  uint32_t len;
+  int r;
   %s v;
 
-  if (!xdr)
-    caml_failwith (\"xdr_get_%s called on closed handle\");
-
-  xdr->x_op = XDR_DECODE;
-  if (!xdr_%s (xdr, &v))
-    /* XXX display xdr_socket->errnum */
+  if (full_read (sock, buf, 4) != 4) {
+    if (errno == 0) caml_raise_end_of_file ();
+    else unix_error (errno, (char *) \"xdr_get_%s: read\", Nothing);
+  }
+  xdrmem_create (&xdr, buf, 4, XDR_DECODE);
+  xdr_u_int (&xdr, &len);
+  xdr_destroy (&xdr);
+  if (len > sizeof buf)
+    caml_failwith (\"xdr_get_%s failed: invalid length or oversized struct\");
+  if (full_read (sock, buf, len) != len) {
+    if (errno == 0) caml_raise_end_of_file ();
+    else unix_error (errno, (char *) \"xdr_get_%s: read\", Nothing);
+  }
+  xdrmem_create (&xdr, buf, len, XDR_DECODE);
+  r = xdr_%s (&xdr, &v);
+  xdr_destroy (&xdr);
+  if (!r)
     caml_failwith (\"xdr_get_%s failed to decode the structure\");
 
   /* Convert the C structure into an OCaml structure. */
   rv = caml_alloc_tuple (%d);
-" name name name name name (List.length fields);
+" name name name name name name name (List.length fields);
 
       List.iteri (
         fun i (fname, ftype, _) ->
@@ -600,17 +504,19 @@ guestfs_int_live_xdr_get_%s (value xdrv)
 }
 
 value
-guestfs_int_live_xdr_put_%s (value xdrv, value vv)
+guestfs_int_live_xdr_put_%s (value sockv, value vv)
 {
-  CAMLparam2 (xdrv, vv);
-  XDR *xdr = Xdrp_val (xdrv);
+  CAMLparam2 (sockv, vv);
+  /* Note that Unix.file_descr is really just an int. */
+  int sock = Int_val (sockv);
+  XDR xdr;
+  uint32_t len;
+  char lenbuf[4];
+  int r;
   %s v;
 
-  if (!xdr)
-    caml_failwith (\"xdr_put_%s called on closed handle\");
-
   /* Convert the OCaml structure into a C structure. */
-" name name name name;
+" name name name;
 
       List.iteri (
         fun i (fname, ftype, _) ->
@@ -642,12 +548,22 @@ guestfs_int_live_xdr_put_%s (value xdrv, value vv)
       ) fields;
 
       pr "
-  xdr->x_op = XDR_ENCODE;
-  if (!xdr_%s (xdr, &v) || !xdrrec_endofrecord (xdr, 1))
-    /* XXX display xdr_socket->errnum */
-    caml_failwith (\"xdr_put_%s failed to encode or send the structure\");
+  xdrmem_create (&xdr, buf, sizeof buf, XDR_ENCODE);
+  r = xdr_%s (&xdr, &v);
+  len = xdr_getpos (&xdr);
+  xdr_destroy (&xdr);
+  if (!r)
+    caml_failwith (\"xdr_put_%s failed to encode the structure\");
+
+  xdrmem_create (&xdr, lenbuf, sizeof lenbuf, XDR_ENCODE);
+  xdr_u_int (&xdr, &len);
+  xdr_destroy (&xdr);
+
+  if (full_write (sock, lenbuf, sizeof lenbuf) != sizeof lenbuf ||
+      full_write (sock, buf, len) != len)
+    unix_error (errno, (char *) \"xdr_put_%s: write\", Nothing);
 
   CAMLreturn (Val_unit);
 }
-" name name;
+" name name name;
   ) structs
