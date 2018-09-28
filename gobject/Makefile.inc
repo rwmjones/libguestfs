@@ -35,6 +35,7 @@ guestfs_gobject_headers= \
   include/guestfs-gobject/struct-hivex_value.h \
   include/guestfs-gobject/struct-inotify_event.h \
   include/guestfs-gobject/struct-int_bool.h \
+  include/guestfs-gobject/struct-interface.h \
   include/guestfs-gobject/struct-isoinfo.h \
   include/guestfs-gobject/struct-lvm_lv.h \
   include/guestfs-gobject/struct-lvm_pv.h \
@@ -128,6 +129,7 @@ guestfs_gobject_sources= \
   src/struct-hivex_value.c \
   src/struct-inotify_event.c \
   src/struct-int_bool.c \
+  src/struct-interface.c \
   src/struct-isoinfo.c \
   src/struct-lvm_lv.c \
   src/struct-lvm_pv.c \

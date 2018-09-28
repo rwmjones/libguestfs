@@ -376,6 +376,24 @@ and inspect_get_drive_mappings root =
   let root = search_for_root root in
   root.inspection_data.drive_mappings
 
+and inspect_get_interfaces root =
+  let root = search_for_root root in
+  match root.inspection_data.interfaces with
+  | None ->
+     raise (Daemon.Not_supported "guest type not supported")
+  | Some interfaces -> List.map fst interfaces
+
+and inspect_get_interface_parameters root i =
+  let root = search_for_root root in
+  match root.inspection_data.interfaces with
+  | None ->
+     raise (Daemon.Not_supported "guest type not supported")
+  | Some interfaces ->
+     let interfaces = List.map snd interfaces in
+     try List.nth interfaces i
+     with Failure _ | Invalid_argument _ ->
+       failwith "index out of range"
+
 and search_for_root root =
   let fses = !Inspect_types.inspect_fses in
   if fses = [] then

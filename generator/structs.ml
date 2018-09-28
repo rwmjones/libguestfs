@@ -478,6 +478,16 @@ let structs = [
     ];
     s_camel_name = "YaraDetection" };
 
+  (* Network interfaces. *)
+  { defaults with
+    s_name = "interface";
+    s_cols = [
+    "if_type", FString;
+    "if_hwaddr", FString;
+    "if_name", FString;
+    ];
+    s_camel_name = "Interface" };
+
 ] (* end of structs *)
 
 let lookup_struct name =

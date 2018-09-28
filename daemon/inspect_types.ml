@@ -54,6 +54,7 @@ and inspection_data = {
   mutable windows_system_hive : string option;
   mutable windows_current_control_set : string option;
   mutable drive_mappings : drive_mapping list;
+  mutable interfaces : interfaces option;
 }
 and os_type =
   | OS_TYPE_DOS
@@ -125,6 +126,8 @@ and package_management =
 and version = int * int
 and fstab_entry = Mountable.t * string (* mountable, mountpoint *)
 and drive_mapping = string * string (* drive name, device *)
+and interfaces = interface list
+and interface = Structs.interface * (string * string) list
 
 let rec string_of_fs { fs_location = location; role } =
   sprintf "fs: %s role: %s\n"
@@ -183,6 +186,17 @@ and string_of_inspection_data data =
       List.map (fun (a, b) -> sprintf "(%s, %s)" a b) data.drive_mappings in
     bpf "    drive_mappings: [%s]\n" (String.concat ", " v)
   );
+  Option.may (
+    fun interfaces ->
+      bpf "    interfaces:\n";
+      List.iteri (
+        fun i ({ Structs.if_type; if_hwaddr; if_name }, params) ->
+          bpf "      [%d]: type: %s mac: %s name: %s"
+              i if_type if_hwaddr if_name;
+          List.iter (fun (k, v) -> bpf " %s: %s" k v) params;
+          bpf "\n"
+      ) interfaces
+  ) data.interfaces;
   Buffer.contents b
 
 and string_of_os_type = function
@@ -272,6 +286,7 @@ let null_inspection_data = {
   windows_system_hive = None;
   windows_current_control_set = None;
   drive_mappings = [];
+  interfaces = None;
 }
 let null_inspection_data () = { null_inspection_data with os_type = None }
 
@@ -299,7 +314,9 @@ let merge_inspection_data child parent =
     merge child.windows_current_control_set parent.windows_current_control_set;
 
   (* This is what the old C code did, but I doubt that it's correct. *)
-  parent.drive_mappings <-  child.drive_mappings @ parent.drive_mappings
+  parent.drive_mappings <-  child.drive_mappings @ parent.drive_mappings;
+
+  parent.interfaces <-      merge child.interfaces parent.interfaces
 
 let merge child_fs parent_fs =
   let inspection_data_of_fs = function

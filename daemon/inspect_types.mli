@@ -57,6 +57,7 @@ and inspection_data = {
   mutable windows_system_hive : string option;
   mutable windows_current_control_set : string option;
   mutable drive_mappings : drive_mapping list;
+  mutable interfaces : interfaces option;
 }
 (** During inspection, this data is collected incrementally for each
     filesystem.  At the end of inspection, inspection data is merged
@@ -132,6 +133,8 @@ and package_management =
 and version = int * int
 and fstab_entry = Mountable.t * string (* mountable, mountpoint *)
 and drive_mapping = string * string (* drive name, device *)
+and interfaces = interface list
+and interface = Structs.interface * (string * string) list
 
 val merge_inspection_data : inspection_data -> inspection_data -> unit
 (** [merge_inspection_data child parent] merges two sets of inspection

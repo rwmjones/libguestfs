@@ -603,6 +603,92 @@ Please read L<guestfs(3)/INSPECTION> for more details.
 See also C<guestfs_inspect_get_mountpoints>,
 C<guestfs_inspect_get_filesystems>." };
 
+  { defaults with
+    name = "inspect_get_interfaces"; added = (1, 39, 11);
+    style = RStructList ("interfaces", "interface"), [String (Mountable, "root")], [];
+    impl = OCaml "Inspect.inspect_get_interfaces";
+    shortdesc = "get the list of network interfaces";
+    longdesc = "\
+Return the list of network interfaces seen by this guest.  This returns
+a list of structs, one struct per network interface.
+
+The returned C<interface> struct contains only a few fields common
+to all interfaces.  For detailed parameters for each interface
+you also need to call C<guestfs_inspect_get_interface_parameters>
+with the index of the interface you are interested in.
+
+The returned C<interface> struct contains these fields:
+
+=over 4
+
+=item C<if_type>
+
+Interface type, including C<ethernet> (wired ethernet), C<wireless>
+(WiFi), C<unknown> if not known.  Other interface types are possible.
+
+=item C<if_hwaddr>
+
+The hardware address (MAC address) of the interface if one is known,
+otherwise the empty string.
+
+=item C<if_name>
+
+The name of the interface as it is known to the guest (eg. C<eth0>).
+Note that network interface names might not be unique.
+
+=back
+
+Depending on the guest type this call may return more network interfaces
+than the guest has physical devices.  In particular it may return all
+network interfaces ever seen by the guest across multiple boots.  To
+work out which interfaces correspond to currently available devices
+you will have to use MAC address information derived from another
+source (eg. hypervisor metadata) and match that to C<if_hwaddr> from
+the struct.
+
+If inspection of network interfaces is not implemented for this
+particular guest type then this will fail with an error and set
+C<errno> to C<ENOTSUP>, so callers should be careful to check for that
+case." };
+
+  { defaults with
+    name = "inspect_get_interface_parameters"; added = (1, 39, 11);
+    style = RHashtable (RPlainString, RPlainString, "parameters"), [String (Mountable, "root"); Int "index"], [];
+    impl = OCaml "Inspect.inspect_get_interface_parameters";
+    shortdesc = "get detailed configuration parameters for a network interface";
+    longdesc = "\
+Return the detailed configuration parameters of the C<index> network
+interface.  Indexes refer to the list returned by
+C<guestfs_inspect_get_interfaces> and count from zero.
+
+The returned parameters can contain a variety of keys.  Some notable
+ones are described below:
+
+=over 4
+
+=item C<bootproto>
+
+C<dhcp> if the interface was last configured to find an IP address
+through DHCP, else C<none> if it was configured to use a static
+IP address.  Other values may be possible.
+
+=item C<essid>
+
+For wireless interfaces, the ESSID.
+
+=item C<ipaddr>, C<network>, C<netmask>, C<gateway>, C<broadcast>
+
+IPv4 address if configured statically.  For some (but not all)
+guest types if the interface uses DHCP then this may record the
+previous IPv4 address which was acquired through DHCP.
+
+=item C<onboot>
+
+Key is present and value is C<1> if the network interface is configured
+to come up at boot.
+
+=back" };
+
 ]
 
 let non_daemon_functions = [

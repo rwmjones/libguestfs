@@ -33,6 +33,7 @@ java_built_sources = \
 	com/redhat/et/libguestfs/INotifyEvent.java \
 	com/redhat/et/libguestfs/ISOInfo.java \
 	com/redhat/et/libguestfs/IntBool.java \
+	com/redhat/et/libguestfs/Interface.java \
 	com/redhat/et/libguestfs/LV.java \
 	com/redhat/et/libguestfs/MDStat.java \
 	com/redhat/et/libguestfs/PV.java \

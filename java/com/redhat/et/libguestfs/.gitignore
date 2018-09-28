@@ -10,6 +10,7 @@ HivexValue.java
 INotifyEvent.java
 ISOInfo.java
 IntBool.java
+Interface.java
 LV.java
 MDStat.java
 PV.java

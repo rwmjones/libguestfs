@@ -514,6 +514,8 @@ let proc_nr = [
 504, "part_get_gpt_attributes";
 505, "f2fs_expand";
 506, "lvm_scan";
+507, "inspect_get_interfaces";
+508, "inspect_get_interface_parameters";
 ]
 
 (* End of list.  If adding a new entry, add it at the end of the list
