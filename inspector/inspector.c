@@ -66,6 +66,7 @@ static void output_root (xmlTextWriterPtr xo, char *root);
 static void output_mountpoints (xmlTextWriterPtr xo, char *root);
 static void output_filesystems (xmlTextWriterPtr xo, char *root);
 static void output_drive_mappings (xmlTextWriterPtr xo, char *root);
+static void output_interfaces (xmlTextWriterPtr xo, char *root);
 static void output_applications (xmlTextWriterPtr xo, char *root);
 static void do_xpath (const char *query);
 
@@ -463,6 +464,8 @@ output_root (xmlTextWriterPtr xo, char *root)
 
   output_drive_mappings (xo, root);
 
+  output_interfaces (xo, root);
+
   /* We need to mount everything up in order to read out the list of
    * applications and the icon, ie. everything below this point.
    */
@@ -663,6 +666,84 @@ output_drive_mappings (xmlTextWriterPtr xo, char *root)
     XMLERROR (-1, xmlTextWriterEndElement (xo));
 
     free (str);
+  }
+
+  XMLERROR (-1, xmlTextWriterEndElement (xo));
+}
+
+static int
+compare_if_name (const void *p1, const void *p2)
+{
+  const struct guestfs_interface *if1 = p1;
+  const struct guestfs_interface *if2 = p2;
+
+  return strcmp (if1->if_name, if2->if_name);
+}
+
+static void
+output_interfaces (xmlTextWriterPtr xo, char *root)
+{
+  CLEANUP_FREE_INTERFACE_LIST struct guestfs_interface_list *interfaces = NULL;
+  size_t i;
+
+  guestfs_push_error_handler (g, NULL, NULL);
+  interfaces = guestfs_inspect_get_interfaces (g, root);
+  guestfs_pop_error_handler (g);
+  if (interfaces == NULL || interfaces->len == 0)
+    return;
+
+  /* Sort by if_name. */
+  qsort (interfaces->val, interfaces->len, sizeof (struct guestfs_interface),
+         compare_if_name);
+
+  XMLERROR (-1, xmlTextWriterStartElement (xo, BAD_CAST "interfaces"));
+
+  for (i = 0; i < interfaces->len; ++i) {
+    XMLERROR (-1, xmlTextWriterStartElement (xo, BAD_CAST "interface"));
+    if (STRNEQ (interfaces->val[i].if_name, ""))
+      XMLERROR (-1,
+                xmlTextWriterWriteAttribute (xo, BAD_CAST "name",
+                                             BAD_CAST
+                                             interfaces->val[i].if_name));
+    if (STRNEQ (interfaces->val[i].if_type, ""))
+      XMLERROR (-1,
+                xmlTextWriterWriteAttribute (xo, BAD_CAST "type",
+                                             BAD_CAST
+                                             interfaces->val[i].if_type));
+    if (STRNEQ (interfaces->val[i].if_hwaddr, ""))
+      XMLERROR (-1,
+                xmlTextWriterWriteAttribute (xo, BAD_CAST "hwaddr",
+                                             BAD_CAST
+                                             interfaces->val[i].if_hwaddr));
+
+    /* Parameters. */
+    CLEANUP_FREE_STRING_LIST char **params =
+      guestfs_inspect_get_interface_parameters (g, root, (int) i);
+    size_t j;
+
+    if (params == NULL || params[0] == NULL)
+      goto noparams;
+
+    XMLERROR (-1, xmlTextWriterStartElement (xo, BAD_CAST "parameters"));
+
+    /* Sort by key. */
+    qsort (params,
+           guestfs_int_count_strings (params) / 2, 2 * sizeof (char *),
+           compare_keys_nocase);
+
+    for (j = 0; params[j] != NULL; j += 2) {
+      XMLERROR (-1,
+                xmlTextWriterStartElement (xo, BAD_CAST "parameter"));
+      XMLERROR (-1,
+                xmlTextWriterWriteAttribute (xo, BAD_CAST "name",
+                                             BAD_CAST params[j]));
+      XMLERROR (-1, xmlTextWriterWriteString (xo, BAD_CAST params[j+1]));
+      XMLERROR (-1, xmlTextWriterEndElement (xo));
+    }
+
+    XMLERROR (-1, xmlTextWriterEndElement (xo));
+  noparams:
+    XMLERROR (-1, xmlTextWriterEndElement (xo));
   }
 
   XMLERROR (-1, xmlTextWriterEndElement (xo));
