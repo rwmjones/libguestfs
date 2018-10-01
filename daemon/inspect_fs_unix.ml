@@ -474,7 +474,8 @@ let rec check_linux_root mountable data =
   data.arch <- check_architecture ();
   data.fstab <-
     Inspect_fs_unix_fstab.check_fstab ~mdadm_conf:true mountable os_type;
-  data.hostname <- check_hostname_linux ()
+  data.hostname <- check_hostname_linux ();
+  data.interfaces <- check_network_interfaces_linux ()
 
 and check_architecture () =
   let rec loop = function
@@ -545,6 +546,88 @@ and check_hostname_from_sysconfig_network aug =
    * just missing HOSTNAME field in the file.
    *)
   aug_get_noerrors aug "/files/etc/sysconfig/network/HOSTNAME"
+
+and check_network_interfaces_linux () =
+  (* If there are any /etc/sysconfig/network-scripts/ifcfg-* files
+   * then we assume old Red Hat network scripts style.  Note if
+   * we ever support NetworkManager explicitly, or systemd-networkd,
+   * then those should be checked _before_ this line.
+   *)
+  match check_old_redhat_network_scripts () with
+  | Some interfaces -> Some interfaces
+  | None -> None
+
+and check_old_redhat_network_scripts () =
+  with_return (fun {return} ->
+    let conf_dir = "/etc/sysconfig/network-scripts" in
+    if not (Is.is_dir conf_dir) then return None;
+
+    (* Get the list of all files and filter for "ifcfg-*". *)
+    let chroot = Chroot.create ~name:"check_old_redhat_network_scripts" () in
+    let files = Chroot.f chroot Sys.readdir conf_dir in
+    let files = Array.to_list files in
+    let files = List.sort compare files in
+    let files = List.filter (fun n -> String.is_prefix n "ifcfg-") files in
+    let files = List.filter (fun n -> not (is_editor_backup n)) files in
+    let files =
+      List.filter_map (
+        fun filename ->
+          match Chroot.f chroot read_small_file (conf_dir // filename) with
+          | None -> None
+          | Some lines -> Some (filename, lines)
+      ) files in
+    if files = [] then return None;
+
+    (* At this point we are going to return one interface per file. *)
+    let interfaces = List.map check_old_redhat_ifcfg_file files in
+    Some interfaces
+  )
+
+(* Load the file and map the key=value pairs found into params.
+ * For ifcfg-* files this mapping is largely an identity map
+ * except:
+ * - keys "TYPE", "HWADDR", "NAME" and "DEVICE" get special treatment
+ * - key is lowercased
+ * - comments are ignored and values must be unquoted
+ * - values like "yes", "no", etc are translated to "1" and "0"
+ *
+ * The if_name comes from: "DEVICE", "NAME" or the ifcfg- filename
+ * with the first taking priority.
+ *)
+and check_old_redhat_ifcfg_file (filename, lines) =
+  let default_name =
+    assert (String.is_prefix filename "ifcfg-");
+    String.sub filename 6 (String.length filename - 6) in
+
+  let lines = parse_key_value_strings ~unquote:shell_unquote lines in
+  let lines = List.map (fun (k, v) -> String.lowercase_ascii k, v) lines in
+
+  let if_type = ref "" in
+  let if_hwaddr = ref "" in
+  let device = ref "" in
+  let name = ref "" in
+  let params = ref [] in
+  List.iter (
+    function
+    | "type", v ->                    if_type := String.lowercase_ascii v
+    | "hwaddr", v ->                  if_hwaddr := String.lowercase_ascii v
+    | "device", v ->                  device := v
+    | "name", v ->                    name := v
+    | k, v when is_true_noraise v ->  List.push_front (k, "1") params
+    | k, v when is_false_noraise v -> List.push_front (k, "0") params
+    | kv ->                           List.push_front kv params
+  ) lines;
+
+  let if_name =
+    if !device <> "" then !device
+    else if !name <> "" then !name
+    else default_name in
+
+  { Structs.if_type = !if_type; if_hwaddr = !if_hwaddr; if_name }, !params
+
+and is_editor_backup filename =
+  String.is_suffix filename "~" ||
+  String.is_suffix filename "*.bak"
 
 (* The currently mounted device looks like a Linux /usr. *)
 let check_linux_usr data =
