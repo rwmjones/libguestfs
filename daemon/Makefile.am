@@ -270,6 +270,7 @@ SOURCES_MLI = \
 	chroot.mli \
 	daemon.mli \
 	daemon_config.mli \
+	daemon_init.mli \
 	devsparts.mli \
 	file.mli \
 	filearch.mli \
@@ -301,6 +302,7 @@ SOURCES_MLI = \
 
 SOURCES_ML = \
 	daemon_config.ml \
+	daemon.ml \
 	utils.ml \
 	structs.ml \
 	optgroups.ml \
@@ -333,7 +335,7 @@ SOURCES_ML = \
 	inspect_fs.ml \
 	inspect.ml \
 	callbacks.ml \
-	daemon.ml
+	daemon_init.ml
 
 BOBJECTS = $(SOURCES_ML:.ml=.cmo)
 XOBJECTS = $(BOBJECTS:.cmo=.cmx)

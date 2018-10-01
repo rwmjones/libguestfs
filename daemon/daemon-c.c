@@ -59,6 +59,8 @@ guestfs_int_daemon_exn_to_reply_with_error (const char *func, value exn)
                              String_val (Field (exn, 2)),
                              String_val (Field (exn, 3)));
   }
+  else if (STREQ (exn_name, "Not_supported"))
+    reply_with_error_errno (ENOTSUP, "%s", String_val (Field (exn, 1)));
   else if (STREQ (exn_name, "Failure"))
     reply_with_error ("%s", String_val (Field (exn, 1)));
   else if (STREQ (exn_name, "Sys_error"))

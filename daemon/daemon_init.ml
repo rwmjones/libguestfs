@@ -18,8 +18,21 @@
 
 open Printf
 
-exception Not_supported of string
-
+(* When guestfsd starts up, early on (after parsing the command line
+ * but not much else), it calls 'caml_startup' which runs all
+ * initialization code in the OCaml modules, including this one.
+ *
+ * Therefore this is where we can place OCaml initialization code
+ * for the daemon.
+ *)
 let () =
-  (* Register exceptions. *)
-  Callback.register_exception "Not_supported" (Not_supported "")
+  (* Connect the guestfsd [-v] (verbose) flag into 'verbose ()'
+   * used in OCaml code to print debugging messages.
+   *)
+  if Utils.get_verbose_flag () then (
+    Std_utils.set_verbose ();
+    eprintf "OCaml daemon loaded\n%!"
+  );
+
+  (* Register the callbacks which are used to call OCaml code from C. *)
+  Callbacks.init_callbacks ()

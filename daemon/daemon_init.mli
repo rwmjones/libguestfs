@@ -1,4 +1,4 @@
-(* guestfs-inspection
+(* guestfsd
  * Copyright (C) 2009-2018 Red Hat Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -16,10 +16,4 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  *)
 
-open Printf
-
-exception Not_supported of string
-
-let () =
-  (* Register exceptions. *)
-  Callback.register_exception "Not_supported" (Not_supported "")
+(* Nothing is exported. *)
