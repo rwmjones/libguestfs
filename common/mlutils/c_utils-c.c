@@ -61,6 +61,19 @@ guestfs_int_mlutils_drive_index (value strv)
 }
 
 value
+guestfs_int_mlutils_is_true (value strv)
+{
+  CAMLparam1 (strv);
+  ssize_t r;
+
+  r = guestfs_int_is_true (String_val (strv));
+  if (r == -1)
+    caml_invalid_argument ("is_true");
+
+  CAMLreturn (Val_bool (r));
+}
+
+value
 guestfs_int_mlutils_shell_unquote (value strv)
 {
   CAMLparam1 (strv);

@@ -23,6 +23,10 @@ open Printf
 external drive_name : int -> string = "guestfs_int_mlutils_drive_name"
 external drive_index : string -> int = "guestfs_int_mlutils_drive_index"
 
+external is_true : string -> bool = "guestfs_int_mlutils_is_true"
+let is_true_noraise s = try is_true s with Invalid_argument _ -> false
+let is_false_noraise s = try not (is_true s) with Invalid_argument _ -> false
+
 external shell_unquote : string -> string = "guestfs_int_mlutils_shell_unquote"
 
 external is_reg : int64 -> bool = "guestfs_int_mlutils_is_reg" "noalloc"

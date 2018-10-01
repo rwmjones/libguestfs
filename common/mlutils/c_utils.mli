@@ -21,6 +21,17 @@
 val drive_name : int -> string
 val drive_index : string -> int
 
+val is_true : string -> bool
+(** Converts strings like ["true"], ["yes"] etc into [true], and
+    strings like ["false"], ["no"] etc into [false].  Other strings
+    will raise [Invalid_argument "is_true"]. *)
+
+val is_true_noraise : string -> bool
+val is_false_noraise : string -> bool
+(** Wrappers around {!is_true} which do not raise an error.  They
+    simply return a boolean indicating if the string is a true-like
+    or false-like string. *)
+
 val shell_unquote : string -> string
 (** If the string looks like a shell quoted string, then attempt to
     unquote it.
