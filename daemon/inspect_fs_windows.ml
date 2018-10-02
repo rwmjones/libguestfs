@@ -281,7 +281,8 @@ and check_windows_system_registry system_hive data =
       | None -> ()
       | Some current_control_set ->
          let hostname = get_hostname h root current_control_set in
-         data.hostname <- hostname
+         data.hostname <- hostname;
+         data.interfaces <- get_network_interfaces h root current_control_set
   ) (* with_hive *)
 
 (* Get the CurrentControlSet. *)
@@ -461,6 +462,140 @@ and get_hostname h root current_control_set =
      if verbose () then
        eprintf "check_windows_system_registry: cannot locate HKLM\\SYSTEM\\%s\\Services\\Tcpip\\Parameters and/or Hostname key\n%!" current_control_set;
      None
+
+(* Get list of network interfaces from the SYSTEM registry.
+ *
+ * We start at \CurrentControlSet\Control\Network.  Under this
+ * node is the Network Adapter class (with the specific class GUID
+ * defined below).  Under here is a list of network adapter GUIDs
+ * which we can cross reference with
+ * \CurrentControlSet\Services\Tcpip\Parameters\Interfaces\{GUID}
+ * to find the DHCP configuration, IP address etc.
+ *
+ * Field names are canonicalized so they look as much like
+ * ifcfg-* keys as possible.
+ *)
+and get_network_interfaces h root current_control_set =
+  with_return (fun {return} ->
+    (* https://docs.microsoft.com/en-us/windows-hardware/drivers/install/system-defined-device-setup-classes-available-to-vendors *)
+    let network_adapter_guid = "{4D36E972-E325-11CE-BFC1-08002BE10318}" in
+    let path = [ current_control_set; "Control"; "Network";
+                 network_adapter_guid ] in
+    let node =
+      try get_node h root path with Not_found -> return None in
+
+    let interfaces = Hivex.node_children h node in
+    let interfaces = Array.to_list interfaces in
+
+    (* Get the node name (GUID), and if it exists the <node>\Connection\Name
+     * key which is the interface name such as "Ethernet0".
+     *
+     * The GUID can be cross-referenceed under ...\Tcpip\Parameters\Interfaces
+     *)
+    let interfaces = List.filter_map (
+      fun node ->
+        try
+          let guid = Hivex.node_name h node in
+          let connection_node = Hivex.node_get_child h node "Connection" in
+          let if_name_v = Hivex.node_get_value h connection_node "Name" in
+          let if_name = Hivex.value_string h if_name_v in
+          Some (guid, if_name)
+        with
+          Not_found -> None
+    ) interfaces in
+
+    (* Cross-reference the GUID. *)
+    let interfaces = List.filter_map (
+      fun (guid, if_name) ->
+        try
+          let path = [ current_control_set; "Services"; "Tcpip";
+                       "Parameters"; "Interfaces"; guid ] in
+          let node = get_node h root path in
+          Some (node, guid, if_name)
+        with
+          Not_found -> None
+    ) interfaces in
+
+    (* Adapted from common/mltools/registry.ml. *)
+    let decode_utf16le str =
+      with_return (fun {return} ->
+        let len = String.length str in
+        if len mod 2 <> 0 then return str;
+        let copy = Bytes.create (len/2) in
+        for i = 0 to (len/2)-1 do
+          let cl = String.unsafe_get str (i*2) in
+          let ch = String.unsafe_get str ((i*2)+1) in
+          if ch != '\000' || Char.code cl >= 127 then return str;
+          Bytes.unsafe_set copy i cl
+        done;
+        Bytes.to_string copy
+      )
+    in
+
+    (* Try to convert any registry value to a UTF-8 string.  This
+     * function is very specific to the values typically found in
+     * the Tcpip\Parameters section.
+     *)
+    let value_as_string h v =
+      let t, data = Hivex.value_value h v in
+      match t, data with
+      | (Hivex.REG_SZ|Hivex.REG_EXPAND_SZ), _ -> Hivex.value_string h v
+      | Hivex.REG_BINARY, data -> decode_utf16le data
+      | Hivex.REG_DWORD, _ -> Int32.to_string (Hivex.value_dword h v)
+      | Hivex.REG_MULTI_SZ, _ ->
+         let strs = Hivex.value_multiple_strings h v in
+         let strs = Array.to_list strs in
+         let strs = List.map decode_utf16le strs in
+         (* If the last element of the list is an empty string, drop it. *)
+         let strs =
+           let rstrs = List.rev strs in
+           match rstrs with
+           | "" :: rest -> List.rev rest
+           | _ -> strs in
+         String.concat ", " strs
+      (* We don't see any other types, but return the raw data. *)
+      | _, data -> data
+    in
+
+    (* Get the values and canonicalize them. *)
+    let interfaces = List.map (
+      fun (node, guid, if_name) ->
+        let values = Hivex.node_values h node in
+        let values = Array.to_list values in
+
+        (* Convert to key (string), value (string). *)
+        let values =
+          List.map (fun v -> Hivex.value_key h v, value_as_string h v)
+                   values in
+
+        let params = ref [] in
+        let if_hwaddr = ref "" in
+
+        List.iter (
+          function
+          | "DefaultGateway", v
+          | "DhcpDefaultGateway", v ->
+             List.push_front ("gateway", v) params
+          | "DhcpInterfaceOptions", v -> () (* ignore *)
+          | "DhcpIPAddress", v
+          | "IPAddress", v ->
+             List.push_front ("ipaddr", v) params
+          | "EnableDHCP", v ->
+             let bootproto = if v <> "0" then "dhcp" else "none" in
+             List.push_front ("bootproto", bootproto) params
+          | "SubnetMask", v ->
+             List.push_front ("netmask", v) params
+          | k, v ->
+             List.push_front ("win:" ^ k, v) params
+        ) values;
+
+        (* XXX How to get if_type? *)
+        { Structs.if_type = "unknown"; if_name; if_hwaddr = !if_hwaddr },
+        !params
+    ) interfaces in
+
+    Some interfaces
+  )
 
 (* Raises [Not_found] if the node is not found. *)
 and get_node h node = function
