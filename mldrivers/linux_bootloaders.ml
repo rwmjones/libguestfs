@@ -409,6 +409,27 @@ let detect_bootloader (g : G.guestfs) root i_firmware =
     in
     loop paths in
 
+  (* If we found a grub2 bootloader called /boot/efi/EFI/<OS>/grub.cfg,
+   * check if it's a "wrapper" that redirects to /boot/grub2/grub.cfg.
+   * This is needed for Fedora and RHEL 9+.  See:
+   * https://issues.redhat.com/browse/RHEL-32099
+   * https://issues.redhat.com/browse/RHEL-77989
+   *)
+  let grub_config =
+    match typ with
+    | Grub1 -> grub_config
+    | Grub2 ->
+       let grub2_efi_rex = PCRE.compile "^/boot/efi/EFI/.*/grub.cfg$" in
+       let grub2_real = "/boot/grub2/grub.cfg" in
+
+       if PCRE.matches grub2_efi_rex grub_config &&
+          (* does it look like the "wrapper"? *)
+          g#grep "configfile \\$prefix/grub\\.cfg" grub_config <> [||] &&
+          g#exists grub2_real then
+         grub2_real
+       else
+         grub_config in
+
   let bl =
     match typ with
     | Grub1 -> new bootloader_grub1 g root grub_config
